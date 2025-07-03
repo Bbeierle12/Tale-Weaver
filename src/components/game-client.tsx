@@ -6,7 +6,7 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Download, MessageSquare, BrainCircuit, FileText, StepForward, Database } from 'lucide-react';
+import { Pause, Play, RotateCcw, Download, MessageSquare, BrainCircuit, FileText, StepForward, Database, BarChart } from 'lucide-react';
 import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatView } from './chat-view';
 import { AnalysisDialog } from './analysis-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SIM_CONFIG } from '@/config';
 
 const INITIAL_AGENT_COUNT = 50;
 const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
@@ -43,7 +43,6 @@ export function SimulationClient() {
 
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
-  const [regrowthRate, setRegrowthRate] = useState(0.15);
   const [colorCounts, setColorCounts] = useState(new Map<string, number>());
   const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(new Map());
   const [pendingNameRequests, setPendingNameRequests] = useState<Set<string>>(new Set());
@@ -52,7 +51,7 @@ export function SimulationClient() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
-  const resetSimulation = useCallback((seedToUse: number, regrowthRateToUse: number) => {
+  const resetSimulation = useCallback((seedToUse: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -66,7 +65,7 @@ export function SimulationClient() {
     setSeed(seedToUse);
     setSeedValue(seedToUse);
 
-    const newWorld = new World(undefined, undefined, regrowthRateToUse);
+    const newWorld = new World();
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
       newWorld.spawnAgent(
         rng() * newWorld.width,
@@ -117,7 +116,7 @@ export function SimulationClient() {
       setColorCounts(newColorCounts);
 
     }, 400);
-  }, [toast]);
+  }, []);
 
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
@@ -125,14 +124,11 @@ export function SimulationClient() {
   }, []);
   
   const handleStep = useCallback(() => {
-    // If we're at tick 0, we need to ensure the simulation is ready,
-    // but without starting the continuous loop.
     if (hudData.tick === 0 && isPaused) {
-       controllerRef.current?.togglePause(); // Start it
-       controllerRef.current?.togglePause(); // then pause it immediately.
+       controllerRef.current?.togglePause();
+       controllerRef.current?.togglePause();
     }
     controllerRef.current?.step();
-    // Manually update HUD after a step since the interval won't run.
     if (world) {
         setHudData({
             tick: world.tick,
@@ -154,12 +150,13 @@ export function SimulationClient() {
       return;
     }
 
-    const jsonl = world.history.map((tick) => JSON.stringify(tick)).join('\n');
-    const blob = new Blob([jsonl], {type: 'application/jsonl'});
+    const header = 'tick,population,births,deaths,avgEnergy,energySD,minEnergy,maxEnergy,avgTileFood,avgTileFoodSD,minTileFood,maxTileFood,foodGini\n';
+    const csv = world.history.map(s => `${s.tick},${s.population},${s.births},${s.deaths},${s.avgEnergy.toFixed(2)},${s.energySD.toFixed(2)},${s.minEnergy.toFixed(2)},${s.maxEnergy.toFixed(2)},${s.avgTileFood.toFixed(2)},${s.avgTileFoodSD.toFixed(2)},${s.minTileFood.toFixed(2)},${s.maxTileFood.toFixed(2)},${s.foodGini.toFixed(2)}`).join('\n');
+    const blob = new Blob([header + csv], {type: 'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `simulation-log-seed-${seed}.jsonl`;
+    a.download = `timeseries-seed-${seed}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -167,7 +164,9 @@ export function SimulationClient() {
   }, [world, seed, toast]);
 
   const handleDownloadForageLog = useCallback(() => {
-    if (!world || world.getForageLog().length === 0) {
+    if (!world) return;
+    const forageData = world.getForageLog();
+    if (forageData.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Data to Download',
@@ -177,7 +176,7 @@ export function SimulationClient() {
     }
 
     const header = 't,i,x,y,f\n';
-    const csv = world.getForageLog().map(s => `${s.t},${s.i},${s.x},${s.y},${s.f.toFixed(3)}`).join('\n');
+    const csv = forageData.join('\n');
     const blob = new Blob([header + csv], {type: 'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -190,7 +189,9 @@ export function SimulationClient() {
   }, [world, seed, toast]);
 
   const handleDownloadSnapshotLog = useCallback(() => {
-    if (!world || world.getAgentSnapshotLog().length === 0) {
+    if (!world) return;
+    const snapshotData = world.getSnapshots();
+    if (snapshotData.length === 0) {
       toast({
         variant: 'destructive',
         title: 'No Data to Download',
@@ -199,8 +200,8 @@ export function SimulationClient() {
       return;
     }
 
-    const header = 'tick,id,x,y,energy\n';
-    const csv = world.getAgentSnapshotLog().map(s => `${s.tick},${s.id},${s.x},${s.y},${s.energy}`).join('\n');
+    const header = 'tick,id,x,y,energy,age\n';
+    const csv = snapshotData.join('\n');
     const blob = new Blob([header + csv], {type: 'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -210,6 +211,30 @@ export function SimulationClient() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }, [world, seed, toast]);
+
+  const handleDownloadHistLog = useCallback(() => {
+    if (!world) return;
+    const histData = world.getHistRows();
+    if (histData.length === 0) {
+       toast({
+        variant: 'destructive',
+        title: 'No Data to Download',
+        description: 'Run the simulation to generate histogram data first.',
+      });
+      return;
+    }
+
+    const header = 'tick,' + Array.from({length: SIM_CONFIG.histBins}, (_, i) => `bin${i}`).join(',') + '\n';
+    const csv = histData.join('\n');
+    const blob = new Blob([header + csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hist-log-seed-${seed}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }, [world, seed, toast]);
 
   const handleAnalyze = useCallback(async () => {
@@ -231,7 +256,6 @@ export function SimulationClient() {
       peakAgentCount,
       initialAgentCount: INITIAL_AGENT_COUNT,
       initialFoodPerTile: INITIAL_FOOD_PER_TILE,
-      regrowthRate: world.growthRate,
       simulationHistory: world.history,
     };
 
@@ -241,7 +265,7 @@ export function SimulationClient() {
   }, [world, isPaused, peakAgentCount, toast]);
 
   useEffect(() => {
-    resetSimulation(Date.now() % 1_000_000, 0.15);
+    resetSimulation(Date.now() % 1_000_000);
 
     return () => {
       if (controllerRef.current) {
@@ -330,7 +354,6 @@ export function SimulationClient() {
               peakAgentCount: peakAgentCount,
               initialAgentCount: INITIAL_AGENT_COUNT,
               initialFoodPerTile: INITIAL_FOOD_PER_TILE,
-              regrowthRate: world?.growthRate ?? regrowthRate,
               simulationHistory: world?.history ?? [],
             }}
           />
@@ -352,7 +375,7 @@ export function SimulationClient() {
           <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward">
             <StepForward className="h-4 w-4" />
           </Button>
-          <Button onClick={() => resetSimulation(seed, regrowthRate)} variant="outline">
+          <Button onClick={() => resetSimulation(seed)} variant="outline">
             <RotateCcw className="mr-2 h-4 w-4" />
             Reset
           </Button>
@@ -367,19 +390,6 @@ export function SimulationClient() {
               disabled={!isPaused}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="regrowth-rate-select" className="text-white font-mono text-sm">Regrowth</Label>
-            <Select value={regrowthRate.toFixed(2)} onValueChange={(v) => setRegrowthRate(Number(v))} disabled={!isPaused}>
-              <SelectTrigger id="regrowth-rate-select" className="w-24 bg-gray-800 border-gray-700">
-                <SelectValue placeholder="Rate" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0.05">0.05</SelectItem>
-                <SelectItem value="0.10">0.10</SelectItem>
-                <SelectItem value="0.15">0.15</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         {/* Right-aligned controls */}
@@ -388,7 +398,7 @@ export function SimulationClient() {
               <FileText className="mr-2 h-4 w-4" />
               Analyze
           </Button>
-          <Button onClick={handleDownloadLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Main Log">
+          <Button onClick={handleDownloadLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Timeseries (CSV)">
               <Download className="h-4 w-4" />
           </Button>
            <Button onClick={handleDownloadForageLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Forage Log (CSV)">
@@ -396,6 +406,9 @@ export function SimulationClient() {
           </Button>
           <Button onClick={handleDownloadSnapshotLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Snapshots (CSV)">
               <Database className="h-4 w-4" />
+          </Button>
+          <Button onClick={handleDownloadHistLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Histogram Log (CSV)">
+              <BarChart className="h-4 w-4" />
           </Button>
         </div>
       </div>

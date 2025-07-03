@@ -14,10 +14,12 @@ export const TickStatsSchema = z.object({
     .number()
     .describe(
       'Total energy spent by all agents on basal metabolism this tick.'
-    ),
+    )
+    .optional(), // Now obsolete
   totalMoveCost: z
     .number()
-    .describe('Total energy spent by all agents on movement this tick.'),
+    .describe('Total energy spent by all agents on movement this tick.')
+    .optional(), // Now obsolete
   avgEnergy: z.number().describe('The average energy of agents at this tick.'),
   energySD: z
     .number()
@@ -59,7 +61,6 @@ export const SimulationAnalysisInputSchema = z.object({
   initialFoodPerTile: z
     .number()
     .describe('The initial food value for each tile.'),
-  regrowthRate: z.number().describe('The rate at which food regrows per second.'),
   simulationHistory: z
     .array(TickStatsSchema)
     .describe(
