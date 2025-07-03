@@ -61,6 +61,9 @@ export const SimulationAnalysisInputSchema = z.object({
   initialFoodPerTile: z
     .number()
     .describe('The initial food value for each tile.'),
+  regrowthRate: z
+    .number()
+    .describe('The food regrowth rate per second per growth event.'),
   simulationHistory: z
     .array(TickStatsSchema)
     .describe(

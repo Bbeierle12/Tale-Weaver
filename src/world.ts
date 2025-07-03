@@ -30,10 +30,10 @@ export class World {
   private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
   private _totalFood: number = 0;
 
-  constructor(width = 200, height = 200) {
+  constructor(width = 200, height = 200, growthRate?: number) {
     this.width = width;
     this.height = height;
-    this.growthRate = SIM_CONFIG.growthRate;
+    this.growthRate = growthRate ?? SIM_CONFIG.growthRate;
     // Initialize tiles with a moderate food level
     this.tiles = Array.from({ length: height }, () =>
       Array.from({ length: width }, () => 0.5)
