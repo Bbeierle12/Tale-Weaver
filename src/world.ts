@@ -55,14 +55,24 @@ export class World {
   public update(dt: number): void {
     this.tick++;
     this.deathsThisTick = 0;
-    this.birthsThisTick = 0; // Reset for the new tick
+    this.birthsThisTick = 0;
     this.regrow(dt);
 
-    // Update all agents
+    const newborns: Agent[] = [];
+    // Update all agents and collect any newborns
     for (const a of this.agents) {
-      a.update(dt, this);
+      const newborn = a.update(dt, this);
+      if (newborn) {
+        newborns.push(newborn);
+      }
     }
     
+    // Add newborns to the population
+    if (newborns.length > 0) {
+      this.agents.push(...newborns);
+      this.birthsThisTick = newborns.length;
+    }
+
     // Cull the dead
     let i = this.agents.length;
     while(i--) {

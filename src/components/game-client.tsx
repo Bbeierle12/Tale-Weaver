@@ -14,7 +14,7 @@ import { rng, setSeed } from '@/utils/random';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const INITIAL_AGENT_COUNT = 300;
+const INITIAL_AGENT_COUNT = 50;
 const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
 
 export function SimulationClient() {

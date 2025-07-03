@@ -87,7 +87,7 @@ export class Renderer {
 
     // draw agents
     for (const a of world.agents) {
-      ctx.fillStyle = '#f59e0b'; // Amber color
+      ctx.fillStyle = a.color; // Use agent's individual color
       const sx = a.x * this.zoom - this.camX;
       const sy = a.y * this.zoom - this.camY;
       if (sx < -4 || sx > cw + 4 || sy < -4 || sy > ch + 4) continue; // skip off‑screen
