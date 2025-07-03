@@ -41,7 +41,7 @@ The user provides the following simulation data. This is your only source of inf
 - Food Energy Value: 10.0
 - Food Regrowth Rate: 0.15 / sec across 400 events/sec
 
-**Full Simulation History (Tick, Live Agents, Births, Deaths, Avg Energy, Avg Food, Avg Food SD):**
+**Full Simulation History (Tick, Population, Demographics, Agent Energy (avg, SD, min, max), Tile Food (avg, SD, min, max, Gini)):**
 \`\`\`json
 {{{json simulationHistory}}}
 \`\`\`
@@ -49,11 +49,11 @@ The user provides the following simulation data. This is your only source of inf
 === Task ===
 1.  **Key Facts & Gaps**: Pull all parameters, key outcomes (e.g., population crash/stability, resource depletion), and any statistical anomalies. Note if critical data for a full analysis is missing from the provided dump.
 2.  **Analysis**:
-    *   **Stats**: Describe trendlines, variance, and any obvious breakpoints in the data.
+    *   **Stats**: Describe trendlines, variance, and any obvious breakpoints in the data. Look for correlations between agent energy and food availability. Use the Gini coefficient to discuss resource inequality.
     *   **Mechanisms**: Analyze the causal chains. Does the system resemble classic ecological models (e.g., Lotka-Volterra, r/K selection)? Why or why not?
     *   **Forecast**: Briefly project what might happen if the simulation ran 5x longer. Include major caveats.
     *   **Robustness**: Propose alternative hypotheses for the observed dynamics. Suggest a key parameter to test for sensitivity.
-3.  **Recommendations**: Provide concrete, actionable next steps for the researcher, tagged with priority [HIGH], [MED], or [LOW]. These should cover simulation model tweaks, new instrumentation/data to collect, or validation experiments.
+3.  **Recommendations**: Provide concrete, actionable next steps for the researcher, tagged with priority [HIGH], [MED], [LOW]. These should cover simulation model tweaks, new instrumentation/data to collect, or validation experiments.
 
 === Output Format (Strictly in this order) ===
 Your final output must be a single markdown block.

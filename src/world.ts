@@ -1,4 +1,5 @@
 import { Agent } from './Agent';
+import type { TickStats } from './ai/schemas';
 
 export class World {
   public width: number;
@@ -9,15 +10,7 @@ export class World {
   public tick = 0;
 
   // Data logging for AI analysis
-  public history: {
-    tick: number;
-    liveAgents: number;
-    births: number;
-    deaths: number;
-    avgEnergy: number;
-    avgTileFood: number;
-    avgTileFoodSD: number;
-  }[] = [];
+  public history: TickStats[] = [];
   public deathsThisTick = 0;
   public birthsThisTick = 0;
 
@@ -80,16 +73,81 @@ export class World {
 
     // Record history for this tick
     if (this.tick > 0) {
-      this.history.push({
-        tick: this.tick,
-        liveAgents: this.agents.length,
-        births: this.birthsThisTick,
-        deaths: this.deathsThisTick,
-        avgEnergy: this.avgEnergy,
-        avgTileFood: this.avgTileFood,
-        avgTileFoodSD: this.avgTileFoodSD,
-      });
+      this.logTickStats();
     }
+  }
+
+  /** Calculates all stats for the current tick and logs them to history. */
+  private logTickStats(): void {
+    // Agent-level stats
+    let sumEnergy = 0;
+    let minEnergy = this.agents.length > 0 ? Infinity : 0;
+    let maxEnergy = this.agents.length > 0 ? -Infinity : 0;
+    for (const agent of this.agents) {
+      const e = agent.energy;
+      sumEnergy += e;
+      if (e < minEnergy) minEnergy = e;
+      if (e > maxEnergy) maxEnergy = e;
+    }
+    const avgEnergy = this.agents.length > 0 ? sumEnergy / this.agents.length : 0;
+    let sumSqDiffEnergy = 0;
+    for (const agent of this.agents) {
+        sumSqDiffEnergy += Math.pow(agent.energy - avgEnergy, 2);
+    }
+    const energySD = this.agents.length > 1 ? Math.sqrt(sumSqDiffEnergy / (this.agents.length - 1)) : 0;
+
+    // Tile-level stats
+    const flatTiles: number[] = [];
+    let minTileFood = this.tiles.length > 0 ? Infinity : 0;
+    let maxTileFood = this.tiles.length > 0 ? -Infinity : 0;
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        const food = this.tiles[y][x];
+        flatTiles.push(food);
+        if (food < minTileFood) minTileFood = food;
+        if (food > maxTileFood) maxTileFood = food;
+      }
+    }
+    const foodGini = this.calculateGini(flatTiles);
+
+    this.history.push({
+      tick: this.tick,
+      liveAgents: this.agents.length,
+      births: this.birthsThisTick,
+      deaths: this.deathsThisTick,
+      avgEnergy,
+      energySD,
+      minEnergy,
+      maxEnergy,
+      avgTileFood: this.avgTileFood,
+      avgTileFoodSD: this.avgTileFoodSD,
+      minTileFood,
+      maxTileFood,
+      foodGini,
+    });
+  }
+
+  /**
+   * Calculates the Gini coefficient for a set of values.
+   * A measure of inequality, where 0 is perfect equality.
+   * NOTE: This is computationally expensive (O(n log n)).
+   */
+  private calculateGini(values: number[]): number {
+    if (values.length === 0) return 0;
+    
+    const sorted = [...values].sort((a, b) => a - b);
+    const n = sorted.length;
+    const totalSum = sorted.reduce((acc, val) => acc + val, 0);
+
+    if (totalSum === 0) return 0;
+
+    let lorenzSum = 0;
+    for (let i = 0; i < n; i++) {
+      lorenzSum += (i + 1) * sorted[i];
+    }
+
+    const gini = ((2 * lorenzSum) / (n * totalSum) - (n + 1) / n);
+    return gini;
   }
 
   /** Regrow food on N random tiles, where N ≈ growthCount * dt (clamped by tile cap = 1) */
