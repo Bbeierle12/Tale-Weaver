@@ -288,6 +288,9 @@ export function SimulationClient() {
             )}
             {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
           </Button>
+          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Step Forward (N)">
+            <StepForward className="h-4 w-4" />
+          </Button>
           <Button onClick={() => resetSimulation(seed)} variant="outline">
             <Square className="mr-2 h-4 w-4" />
             Stop
@@ -311,9 +314,6 @@ export function SimulationClient() {
 
         {/* Right-aligned controls */}
         <div className="flex items-center gap-2">
-          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Step Forward (N)">
-            <StepForward className="h-4 w-4" />
-          </Button>
           <Button onClick={handleAnalyze} variant="outline" disabled={!isPaused || hudData.tick === 0}>
               <FileText className="mr-2 h-4 w-4" />
               Analyze
