@@ -1,5 +1,5 @@
 import { Agent } from './Agent';
-import type { ForageSample, TileEvent } from './metrics';
+import type { ForageSample, TileEvent, AgentSnapshot } from './metrics';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
 import { RunningStats, calculateGini } from './utils/stats';
@@ -19,9 +19,13 @@ export class World {
   private births = 0;
 
   // Spatial telemetry
-  private static readonly FORAGE_LOG_CAP = 32_768;
+  private static readonly FORAGE_LOG_CAP = 20_000;
   private forageLog: ForageSample[] = new Array<ForageSample>(World.FORAGE_LOG_CAP);
   private foragePtr = 0;
+
+  private static readonly AGENT_SNAPSHOT_LOG_CAP = 20_000;
+  private agentSnapshotLog: AgentSnapshot[] = new Array<AgentSnapshot>(World.AGENT_SNAPSHOT_LOG_CAP);
+  private agentSnapshotPtr = 0;
 
   private static readonly TILE_LOG_CAP = 32_768;
   private tileLog: TileEvent[] = new Array<TileEvent>(World.TILE_LOG_CAP);
@@ -50,6 +54,21 @@ export class World {
   // expose snapshot for analysis or CSV dump
   public getForageLog(): readonly ForageSample[] {
     return this.forageLog.slice(0, this.foragePtr);
+  }
+
+  public getAgentSnapshotLog(): readonly AgentSnapshot[] {
+    return this.agentSnapshotLog.slice(0, this.agentSnapshotPtr);
+  }
+
+  private recordAgentSnapshot(agent: Agent) {
+    this.agentSnapshotLog[this.agentSnapshotPtr++] = {
+        tick: this.tick,
+        id: agent.id,
+        x: agent.x,
+        y: agent.y,
+        energy: agent.energy
+    };
+    if (this.agentSnapshotPtr === World.AGENT_SNAPSHOT_LOG_CAP) this.agentSnapshotPtr = 0;
   }
 
   public recordTileEvent(tick: number, x: number, y: number, foodAfter: number, delta: number) {
@@ -114,6 +133,13 @@ export class World {
         this.deathsTotal++;
         this.deaths++;
       }
+    }
+
+    // Agent Snapshot (every 100 ticks)
+    if (this.tick % 100 === 0) {
+        for (const agent of this.agents) {
+            this.recordAgentSnapshot(agent);
+        }
     }
 
     // Record history for this tick

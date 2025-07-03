@@ -7,6 +7,14 @@ export interface ForageSample {
   foodEaten: number;
 }
 
+export interface AgentSnapshot {
+  tick: number;
+  id: number;
+  x: number;
+  y: number;
+  energy: number;
+}
+
 export interface TileEvent {
   tick: number;
   x: number;

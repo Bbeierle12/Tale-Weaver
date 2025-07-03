@@ -6,7 +6,7 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Download, MessageSquare, BrainCircuit, FileText, StepForward } from 'lucide-react';
+import { Pause, Play, RotateCcw, Download, MessageSquare, BrainCircuit, FileText, StepForward, Database } from 'lucide-react';
 import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
@@ -158,6 +158,52 @@ export function SimulationClient() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `simulation-log-seed-${seed}.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [world, seed, toast]);
+
+  const handleDownloadForageLog = useCallback(() => {
+    if (!world || world.getForageLog().length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No Data to Download',
+        description: 'Run the simulation to generate forage data first.',
+      });
+      return;
+    }
+
+    const header = 'tick,id,x,y,foodEaten\n';
+    const csv = world.getForageLog().map(s => `${s.tick},${s.id},${s.x},${s.y},${s.foodEaten}`).join('\n');
+    const blob = new Blob([header + csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `forage-log-seed-${seed}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [world, seed, toast]);
+
+  const handleDownloadSnapshotLog = useCallback(() => {
+    if (!world || world.getAgentSnapshotLog().length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No Data to Download',
+        description: 'Run the simulation to generate snapshot data first (runs every 100 ticks).',
+      });
+      return;
+    }
+
+    const header = 'tick,id,x,y,energy\n';
+    const csv = world.getAgentSnapshotLog().map(s => `${s.tick},${s.id},${s.x},${s.y},${s.energy}`).join('\n');
+    const blob = new Blob([header + csv], {type: 'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agent-snapshots-seed-${seed}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -325,8 +371,14 @@ export function SimulationClient() {
               <FileText className="mr-2 h-4 w-4" />
               Analyze
           </Button>
-          <Button onClick={handleDownloadLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Log">
+          <Button onClick={handleDownloadLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Main Log">
               <Download className="h-4 w-4" />
+          </Button>
+           <Button onClick={handleDownloadForageLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Forage Log (CSV)">
+              <Database className="h-4 w-4" />
+          </Button>
+          <Button onClick={handleDownloadSnapshotLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Snapshots (CSV)">
+              <Database className="h-4 w-4" />
           </Button>
         </div>
       </div>
