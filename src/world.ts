@@ -8,6 +8,7 @@ export class World {
   private timeAccumulator = 0;
   private readonly timePerStep = 2.0; // Seconds per day
   public isUpdating = false;
+  public tick = 0;
 
   constructor() {
     this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
@@ -23,6 +24,7 @@ export class World {
   }
 
   public update(dt: number) {
+    this.tick++;
     this.timeAccumulator += dt;
     if (this.timeAccumulator >= this.timePerStep && !this.isUpdating) {
       this.timeAccumulator -= this.timePerStep;
@@ -53,5 +55,6 @@ export class World {
     this.narration = INITIAL_NARRATION;
     this.timeAccumulator = 0;
     this.isUpdating = false;
+    this.tick = 0;
   }
 }
