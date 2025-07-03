@@ -90,6 +90,14 @@ export class World {
   /** Average energy of all alive agents (0 if no agents). */
   get avgEnergy(): number {
     if (this.agents.length === 0) return 0;
-    return this.agents.reduce((s, a) => s + a.energy, 0) / this.agents.length;
+    let sumEnergy = 0;
+    let aliveCount = 0;
+    for (const agent of this.agents) {
+      if (!agent.dead) {
+        sumEnergy += agent.energy;
+        aliveCount++;
+      }
+    }
+    return aliveCount ? sumEnergy / aliveCount : 0;
   }
 }
