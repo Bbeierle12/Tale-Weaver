@@ -39,7 +39,7 @@ export function SimulationClient() {
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
 
-  const resetSimulation = useCallback(() => {
+  const resetSimulation = useCallback((seedToUse: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -47,7 +47,8 @@ export function SimulationClient() {
       clearInterval(hudIntervalRef.current);
     }
     
-    setSeed(seed);
+    setSeed(seedToUse);
+    setSeedValue(seedToUse);
 
     const newWorld = new World();
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
@@ -92,7 +93,7 @@ export function SimulationClient() {
       });
       setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
     }, 400);
-  }, [seed]);
+  }, []);
 
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
@@ -128,7 +129,9 @@ export function SimulationClient() {
   }, [world, peakAgentCount, toast]);
 
   useEffect(() => {
-    resetSimulation();
+    // On mount, reset with a random seed to avoid hydration errors
+    // and provide a different simulation on each load.
+    resetSimulation(Date.now() % 1_000_000);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
@@ -150,7 +153,7 @@ export function SimulationClient() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resetSimulation, handleTogglePause]);
 
   return (
     <div className="relative h-screen w-full bg-gray-900">
@@ -165,11 +168,11 @@ export function SimulationClient() {
           )}
           {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
         </Button>
-        <Button onClick={() => resetSimulation()} variant="outline">
+        <Button onClick={() => resetSimulation(seed)} variant="outline">
           <Square className="mr-2 h-4 w-4" />
           Stop
         </Button>
-        <Button onClick={() => resetSimulation()} variant="outline">
+        <Button onClick={() => resetSimulation(seed)} variant="outline">
           <RotateCcw className="mr-2 h-4 w-4" />
           Reset
         </Button>
