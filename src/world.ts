@@ -25,15 +25,17 @@ export class World {
         Array.from({ length: this.width }, () => Math.random())
       );
       // initial population
-      for (let i = 0; i < 300; i++) this.spawnAgent(Math.random() * this.width, Math.random() * this.height);
+      for (let i = 0; i < 300; i++) {
+        this.spawnAgent(Math.random() * this.width, Math.random() * this.height);
+      }
   }
 
-  public inBounds(x: number, y: number) {
+  public inBounds(x: number, y: number): boolean {
     return x >= 0 && x < this.width && y >= 0 && y < this.height;
   }
 
   /** food consumption – returns amount eaten */
-  public consumeFood(x: number, y: number, amount: number) {
+  public consumeFood(x: number, y: number, amount: number): number {
     const ix = x | 0;
     const iy = y | 0;
     if (!this.inBounds(ix, iy)) return 0;
@@ -44,11 +46,27 @@ export class World {
     return eaten;
   }
 
-  public spawnAgent(x: number, y: number) {
-    this.agents.push(new Agent(x, y));
+  public spawnAgent(x: number, y: number, genome?: Float32Array): Agent {
+    const agent = new Agent(x, y, genome, this);
+    this.agents.push(agent);
+    this.clampPosition(agent);
+    return agent;
   }
 
-  public update(dt: number) {
+  public kill(agent: Agent): void {
+    const index = this.agents.indexOf(agent);
+    if (index > -1) {
+      this.agents.splice(index, 1);
+      this.deadCount++;
+    }
+  }
+
+  public clampPosition(agent: Agent): void {
+    agent.x = Math.max(0, Math.min(this.width - 1, agent.x));
+    agent.y = Math.max(0, Math.min(this.height - 1, agent.y));
+  }
+
+  public update(dt: number): void {
     this.tick += 1;
 
     // grow food slowly
@@ -58,27 +76,25 @@ export class World {
       this.tiles[y][x] = Math.min(1, this.tiles[y][x] + 0.002);
     }
 
-    // update agents
-    for (const a of this.agents) a.update(dt, this.width, this.height);
-    
-    // cull the dead
-    let i = this.agents.length;
-    while (i--) {
-      if (this.agents[i].dead) {
-        this.agents.splice(i, 1);
-        this.deadCount++;
+    // Update agents. Iterate over a copy because the agent list can be modified
+    // during the loop (reproduction, death).
+    const agentsToUpdate = [...this.agents];
+    for (const a of agentsToUpdate) {
+      // Check if agent is still alive before updating
+      if (this.agents.includes(a)) {
+        a.update(dt);
       }
     }
   }
 
   // metrics for HUD
-  public get avgEnergy() {
+  public get avgEnergy(): number {
     if (!this.agents.length) return 0;
     return this.agents.reduce((s, a) => s + a.energy, 0) / this.agents.length;
   }
 
-  get alive() { return this.agents.length; }
-  get deadTotal() { return this.deadCount; }
+  get alive(): number { return this.agents.length; }
+  get deadTotal(): number { return this.deadCount; }
 
   public getStats() {
     const totalFood = this.tiles.flat().reduce((sum, tile) => sum + tile, 0);

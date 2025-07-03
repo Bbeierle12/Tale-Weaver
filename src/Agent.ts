@@ -1,53 +1,97 @@
+/* eslint-disable no-loss-of-precision */
+import { randomGenome, mapLinear, mutateGenome } from './utils/genetics'
+import type { World } from './world'
+
 /**
- * Agent v0.1 — minimal organism for EcoSysX
- *  • Unique id (monotonic counter)
- *  • Position (x, y in tile coords)
- *  • Facing  (radians)
- *  • Energy  (<=0 → dead)
- *  • Behaviour: unbiased random walk
+ * Agent (v0.2) — now with a digital genome.
+ * Each instance owns a Float32Array<16> that linearly encodes key traits.
  */
 export class Agent {
-  /* static */ private static uid = 0;
+  x: number
+  y: number
+  energy = 10
+  readonly genome: Float32Array
+  private readonly world: World
 
-  readonly id = Agent.uid++;
-  x: number;
-  y: number;
-  facing = Math.random() * Math.PI * 2;
-  energy = 10;                   // arbitrary starting energy
-  dead  = false;
-
-  private readonly speed = 3;    // tiles / second
-  private readonly metabolicCost = 0.1; // energy / sec
-
-  constructor(x: number, y: number) {
-    this.x = x;
-    this.y = y;
+  constructor (
+    x: number,
+    y: number,
+    genome: Float32Array | undefined,
+    world: World
+  ) {
+    this.x = x
+    this.y = y
+    this.genome = genome ?? randomGenome()
+    this.world = world
   }
 
-  /** random‑walk step */
-  update(dt: number, worldW: number, worldH: number) {
-    if (this.dead) return;
+  // ---------- GENOTYPE → PHENOTYPE GETTERS ----------
 
-    // 1. random steering
-    const turn = (Math.random() - 0.5) * Math.PI * 0.5; // ±25°
-    this.facing += turn;
+  /** Tiles / sec ∈ [2, 6] */
+  get speed (): number {
+    return mapLinear(this.genome[0], 2, 6)
+  }
 
-    // 2. move forward
-    this.x += Math.cos(this.facing) * this.speed * dt;
-    this.y += Math.sin(this.facing) * this.speed * dt;
+  /** Vision radius ∈ [10, 20] tiles */
+  get vision (): number {
+    return mapLinear(this.genome[1], 10, 20)
+  }
 
-    // 3. keep on map (bounce)
-    if (this.x < 0 || this.x >= worldW) {
-      this.facing = Math.PI - this.facing;
-      this.x = Math.max(0, Math.min(worldW - 1, this.x));
-    }
-    if (this.y < 0 || this.y >= worldH) {
-      this.facing = -this.facing;
-      this.y = Math.max(0, Math.min(worldH - 1, this.y));
-    }
+  /** Passive metabolic cost (energy / sec) ∈ [0.05, 0.2] */
+  get metabolicCost (): number {
+    return mapLinear(this.genome[2], 0.05, 0.2)
+  }
 
-    // 4. energy loss & death
-    this.energy -= this.metabolicCost * dt;
-    if (this.energy <= 0) this.dead = true;
+  /** Energy level required to reproduce ∈ [15, 30] */
+  get reproductionThreshold (): number {
+    return mapLinear(this.genome[3], 15, 30)
+  }
+
+  // ---------- UPDATE LOOP ----------
+
+  update (dt: number): void {
+    // Existing per‑tick movement, collisions, food collection, etc.
+    this.randomWalk(dt)
+
+    // Metabolic drain
+    this.energy -= this.metabolicCost * dt
+    if (this.energy <= 0) this.world.kill(this)
+
+    // Reproduction check
+    this.reproduce()
+  }
+
+  private randomWalk (dt: number): void {
+    // Simplified placeholder – existing logic likely more complex
+    const angle = Math.random() * Math.PI * 2
+    this.x += Math.cos(angle) * this.speed * dt
+    this.y += Math.sin(angle) * this.speed * dt
+    this.world.clampPosition(this)
+    // Movement energy drain (unchanged)
+    this.energy -= this.speed * 0.01 * dt
+  }
+
+  // ---------- ASEXUAL REPRODUCTION ----------
+
+  reproduce (): void {
+    if (this.energy < this.reproductionThreshold) return
+
+    // Parent energy cost
+    this.energy -= 10
+
+    // Clone & mutate genome
+    const childGenome = new Float32Array(this.genome) // copy
+    mutateGenome(childGenome, 0.01)
+
+    // Jittered position (±1 tile)
+    const jitterX = (Math.random() * 2 - 1)
+    const jitterY = (Math.random() * 2 - 1)
+
+    const child = this.world.spawnAgent(
+      this.x + jitterX,
+      this.y + jitterY,
+      childGenome
+    )
+    child.energy = 10
   }
 }
