@@ -60,8 +60,6 @@ export class Agent {
     this.move(dir, world)
 
     // Forage
-    // In this model, `biteEnergy` is treated as the amount of food units to consume,
-    // and the energy gained is equivalent to the food units eaten.
     const energyGained = world.eatAt(this.x, this.y, SIM_CONFIG.biteEnergy);
 
     if (energyGained > 0) {
@@ -76,8 +74,13 @@ export class Agent {
       return new Agent(this.x, this.y, SIM_CONFIG.birthCost, this.genome)
     }
 
-    // Death is handled by the World, so no check here.
-    return null
+    // Death check
+    if (this.energy < SIM_CONFIG.deathThreshold) {
+      world.markDeath();
+      return null;
+    }
+
+    return null // Indicates survival without birth
   }
 
   private move (dir: number, world: World): void {

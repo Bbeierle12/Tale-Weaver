@@ -44,9 +44,7 @@ export class World {
   public eatAt (x: number, y: number, biteAmount: number): number {
     const i = this.idx(x, y);
     const taken = Math.min(biteAmount, this.food[i]);
-    if (taken > 0) {
-        this.food[i] -= taken;
-    }
+    this.food[i] -= taken;
     return taken;
   }
 
@@ -86,15 +84,17 @@ export class World {
     // Tick agents
     const nextAgents: Agent[] = [];
     for (const a of this.agents) {
-      const child = a.tick(this);
+      const child = a.tick(this); // Agent lives, dies, or gives birth
+      
+      // If a child was born, add it to the list
       if (child) {
         nextAgents.push(child);
         this.births++;
       }
+      
+      // If the original agent survived this tick, add it to the list
       if (a.energy >= SIM_CONFIG.deathThreshold) {
         nextAgents.push(a);
-      } else {
-        this.markDeath(); // Agent dies
       }
     }
     this.agents = nextAgents;
