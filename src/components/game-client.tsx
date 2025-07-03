@@ -38,6 +38,7 @@ export function SimulationClient() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
+  const [colorCounts, setColorCounts] = useState(new Map<string, number>());
 
   const resetSimulation = useCallback((seedToUse: number) => {
     const canvas = canvasRef.current;
@@ -62,6 +63,7 @@ export function SimulationClient() {
     setAnalysisResult(null);
     setIsAnalyzing(false);
     setIsAnalysisDialogOpen(false);
+    setColorCounts(new Map());
     
     setHudData({
       tick: newWorld.tick,
@@ -92,6 +94,13 @@ export function SimulationClient() {
         avgEnergy: newWorld.avgEnergy,
       });
       setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
+
+      const newColorCounts = new Map<string, number>();
+      for (const agent of newWorld.agents) {
+        newColorCounts.set(agent.color, (newColorCounts.get(agent.color) || 0) + 1);
+      }
+      setColorCounts(newColorCounts);
+
     }, 400);
   }, []);
 
@@ -180,6 +189,25 @@ export function SimulationClient() {
   return (
     <div className="relative h-screen w-full bg-gray-900">
       {world && <Hud {...hudData} />}
+
+      <div className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-3 rounded-lg max-h-80 w-64 overflow-y-auto font-mono text-sm text-white z-10">
+        <h3 className="font-bold mb-2 text-base">Species Colors</h3>
+        {colorCounts.size === 0 && <p className="text-xs text-gray-400">No agents yet.</p>}
+        <ul className="space-y-1">
+          {Array.from(colorCounts.entries())
+            .sort(([, a], [, b]) => b - a)
+            .map(([color, count]) => (
+              <li key={color} className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: color }} />
+                  <span className="flex-1 text-xs">{color}</span>
+                </div>
+                <span className="font-bold">{count}</span>
+              </li>
+            ))}
+        </ul>
+      </div>
+
       <canvas ref={canvasRef} className="h-full w-full" />
       <div className="absolute bottom-4 left-4 flex items-center gap-2">
         <Button onClick={handleTogglePause} className="w-28">
