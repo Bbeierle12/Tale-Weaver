@@ -1,81 +1,62 @@
 'use server';
 
 /**
- * @fileOverview A flow for simulating a step in an ecosystem.
+ * @fileOverview A flow for generating a deep-dive analysis of an agent simulation.
  *
- * - simulateEcosystemStep - Simulates one time step of the ecosystem.
- * - EcosystemState - The type for the ecosystem's state.
- * - SimulationStepOutput - The return type for the simulation step.
+ * - analyzeSimulation - Generates an analysis based on final simulation stats.
  */
 
 import {ai} from '@/ai/genkit';
 import {
-  EcosystemState,
-  EcosystemStateSchema,
-  SimulationStepOutput,
-  SimulationStepOutputSchema,
+  SimulationAnalysisInputSchema,
+  SimulationAnalysisOutputSchema,
 } from '@/ai/schemas';
+import type { SimulationAnalysisInput, SimulationAnalysisOutput } from '@/ai/schemas';
 
-export async function simulateEcosystemStep(
-  input: EcosystemState
-): Promise<SimulationStepOutput> {
-  return simulateEcosystemStepFlow(input);
+export async function analyzeSimulation(
+  input: SimulationAnalysisInput
+): Promise<SimulationAnalysisOutput> {
+  return analyzeSimulationFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'simulateEcosystemStepPrompt',
-  input: {schema: EcosystemStateSchema},
-  output: {schema: SimulationStepOutputSchema},
-  prompt: `You are an expert ecosystem simulator. Your task is to advance the simulation by one day.
-Given the current state of the ecosystem, you must calculate the state for the next day.
+  name: 'analyzeSimulationPrompt',
+  input: {schema: SimulationAnalysisInputSchema},
+  output: {schema: SimulationAnalysisOutputSchema},
+  prompt: `You are an expert ecologist and data analyst, tasked with analyzing data from an agent-based life simulation.
 
-Current State:
-- Day: {{{day}}}
-- Populations: {{#each populations}}* {{this.[@key]}}: {{this}} {{/each}}
-- Environment: Temperature {{environment.temperature}}°C, Rainfall {{environment.rainfall}}mm
-- Recent Events: {{#each log}}* {{{this}}} {{/each}}
+The simulation uses a simple model:
+- Agents wander randomly on a 2D map.
+- The map contains food tiles that slowly regrow.
+- Agents consume food from their current tile to gain energy.
+- Agents have a constant metabolic cost, losing energy over time.
+- If an agent's energy reaches zero, it dies.
+- All agents are present from the start; there is no reproduction.
 
-Follow these rules for the simulation:
-1.  **Time:** Increment the day by 1.
-2.  **Population Dynamics:**
-    *   Model growth: Species should reproduce. Grass grows based on rainfall. Herbivores (like Rabbits) reproduce based on grass availability. Carnivores (like Foxes) reproduce based on herbivore availability.
-    *   Model consumption/predation: Foxes eat Rabbits, reducing their population. Rabbits eat Grass, reducing its abundance.
-    *   Model death: A small percentage of each animal population may die of natural causes each day.
-    *   Populations cannot be negative. The minimum is 0. All populations must be integers.
-3.  **Environmental Changes:**
-    *   Slightly and randomly vary the temperature and rainfall for the new day to simulate natural weather patterns.
-4.  **Logging:** Update the log with 1-3 new, significant events from the step you just simulated. Keep the log size from growing too large (max 5 items).
-5.  **Narration:** Write a brief, engaging summary of the events of the day. Explain the major changes and why they happened.
-6.  **Output:** Provide the complete new state of the ecosystem and the narration in the specified JSON format.
+Here is the data from the completed simulation run:
+- Total Duration: {{{ticks}}} ticks.
+- Peak Agent Population: {{{peakAgentCount}}} agents.
+- Final Agent Population: {{{finalAgentCount}}} agents.
+- Final Average Agent Energy: {{{finalAvgEnergy}}}
+- Final Average Food per Tile: {{{finalAvgTileFood}}}
 
-Ecosystem Interactions:
-- Grass is the producer. It grows with rain and sun (moderate temperature). Its population is measured in units of biomass.
-- Rabbits are primary consumers (herbivores). They eat Grass.
-- Foxes are secondary consumers (carnivores). They eat Rabbits.
+Based on this data, provide a deep-dive analysis. Address the following points:
+1.  **Population Dynamics:** Describe the population trend. Was there a sharp decline? A slow attrition? What does the difference between the peak and final population tell you?
+2.  **Environment & Carrying Capacity:** How did the agents impact the environment (the food)? Does the final average food level suggest the environment was depleted, stable, or plentiful? Discuss the concept of carrying capacity in relation to the number of agents.
+3.  **Survival Analysis:** What factors likely determined which agents survived? Since behavior is random, survival would be linked to luck (finding food tiles) and the overall food availability.
+4.  **Conclusion:** Summarize the simulation's story. Was it a story of a population boom followed by a crash? A stable ecosystem? A slow decline into extinction? Offer one suggestion for a future experiment (e.g., adding reproduction, predator-prey dynamics, or genetic traits).
 
-Example Logic:
-- If grass is plentiful, rabbit population might increase by 10%.
-- If rabbits are plentiful, fox population might increase by 5%.
-- A fox needs to eat several rabbits over time to survive and reproduce.
-- If there is a drought (low rainfall), grass will decrease, which will then impact the rabbit and fox populations in subsequent steps.
-
-Now, calculate the next day's state based on the provided input. Make the simulation interesting and somewhat unpredictable.`,
+Structure your report using markdown. Use headings for each section (e.g., "## Population Dynamics"). Your tone should be scientific and insightful.`,
 });
 
-const simulateEcosystemStepFlow = ai.defineFlow(
+const analyzeSimulationFlow = ai.defineFlow(
   {
-    name: 'simulateEcosystemStepFlow',
-    inputSchema: EcosystemStateSchema,
-    outputSchema: SimulationStepOutputSchema,
+    name: 'analyzeSimulationFlow',
+    inputSchema: SimulationAnalysisInputSchema,
+    outputSchema: SimulationAnalysisOutputSchema,
   },
-  async input => {
+  async (input) => {
     const {output} = await prompt(input);
-    if (output) {
-      // Ensure populations are integers
-      for (const species in output.newState.populations) {
-        output.newState.populations[species] = Math.round(output.newState.populations[species]);
-      }
-    }
     return output!;
   }
 );

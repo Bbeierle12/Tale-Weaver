@@ -1,28 +1,26 @@
 'use server';
 
-import {simulateEcosystemStep} from '@/ai/flows/generate-world-narration';
+import { analyzeSimulation } from '@/ai/flows/generate-world-narration';
 import type {
-  EcosystemState,
-  SimulationStepOutput,
+  SimulationAnalysisInput,
+  SimulationAnalysisOutput,
 } from '@/ai/schemas';
 
-export async function runSimulationStepAction(
-  currentState: EcosystemState
-): Promise<SimulationStepOutput> {
+export async function analyzeSimulationAction(
+  input: SimulationAnalysisInput
+): Promise<SimulationAnalysisOutput> {
   try {
-    const result = await simulateEcosystemStep(currentState);
+    const result = await analyzeSimulation(input);
+    if (!result?.analysis) {
+      return {
+        analysis: '## Analysis Failed\n\nThe AI returned an empty analysis. Please try again.',
+      };
+    }
     return result;
   } catch (error) {
-    console.error('Error running simulation step:', error);
-    // Return a valid output structure even on error, to prevent crashing the client
-    const logMessage =
-      'A cosmic anomaly disrupted the flow of time. The ecosystem remains unchanged.';
+    console.error('Error running simulation analysis:', error);
     return {
-      newState: {
-        ...currentState,
-        log: [...currentState.log, logMessage].slice(-5),
-      },
-      narration: logMessage,
+      analysis: `## Analysis Failed\n\nAn error occurred while generating the analysis: ${error instanceof Error ? error.message : 'Unknown error'}`
     };
   }
 }

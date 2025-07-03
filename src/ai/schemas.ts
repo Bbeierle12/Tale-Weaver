@@ -1,41 +1,35 @@
 /**
- * @fileOverview This file contains the Zod schemas and TypeScript types for the ecosystem simulation.
- * It is separate from the flow definition to allow these types to be used in client components
- * without violating the "use server" directive which only allows async function exports.
- *
- * - EcosystemStateSchema - Zod schema for the state of the ecosystem.
- * - EcosystemState - TypeScript type inferred from EcosystemStateSchema.
- * - SimulationStepOutputSchema - Zod schema for the output of a simulation step.
- * - SimulationStepOutput - TypeScript type inferred from SimulationStepOutputSchema.
+ * @fileOverview This file contains the Zod schemas and TypeScript types for the simulation analysis.
  */
 
 import {z} from 'zod';
 
-export const EcosystemStateSchema = z.object({
-  day: z.number().describe('The current day in the simulation.'),
-  populations: z
-    .record(z.string(), z.number())
-    .describe('A map of species names to their population count.'),
-  environment: z
-    .object({
-      temperature: z.number().describe('The average temperature in Celsius.'),
-      rainfall: z.number().describe('The rainfall in mm.'),
-    })
-    .describe('The current environmental conditions.'),
-  log: z
-    .array(z.string())
-    .describe('A log of the last few significant events.'),
+export const SimulationAnalysisInputSchema = z.object({
+  ticks: z.number().describe('The total number of ticks the simulation ran.'),
+  peakAgentCount: z
+    .number()
+    .describe('The maximum number of agents alive at any point.'),
+  finalAgentCount: z
+    .number()
+    .describe('The number of agents alive at the end of the simulation.'),
+  finalAvgEnergy: z
+    .number()
+    .describe('The average energy of the agents at the end.'),
+  finalAvgTileFood: z
+    .number()
+    .describe('The average food per tile on the map at the end.'),
 });
-export type EcosystemState = z.infer<typeof EcosystemStateSchema>;
+export type SimulationAnalysisInput = z.infer<
+  typeof SimulationAnalysisInputSchema
+>;
 
-export const SimulationStepOutputSchema = z.object({
-  newState: EcosystemStateSchema.describe(
-    'The updated state of the ecosystem after the time step.'
-  ),
-  narration: z
+export const SimulationAnalysisOutputSchema = z.object({
+  analysis: z
     .string()
     .describe(
-      'A narrative summary of what happened during this time step, explaining the changes in population and environment.'
+      'A detailed, markdown-formatted analysis of the simulation.'
     ),
 });
-export type SimulationStepOutput = z.infer<typeof SimulationStepOutputSchema>;
+export type SimulationAnalysisOutput = z.infer<
+  typeof SimulationAnalysisOutputSchema
+>;
