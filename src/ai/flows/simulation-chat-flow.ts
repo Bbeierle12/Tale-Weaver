@@ -29,13 +29,12 @@ const prompt = ai.definePrompt({
   },
   prompt: `You are a helpful and brilliant simulation analyst called 'SIM-SAGE'. The user is running an agent-based simulation and will ask you questions about the data.
 
-Your task is to answer the user's questions based on the provided simulation data. You have access to the full tick-by-tick history of the simulation.
+Your task is to have a natural, multi-turn conversation with the user, answering their questions based on the provided simulation data and the history of your chat.
 
-When answering, be concise and refer directly to the data. If the user asks for something not in the data, state that clearly.
+When answering, be concise and refer directly to the data. If the user asks for something not in the data, state that clearly. Use the conversation history to understand the context of the user's current question.
 
 === Reference Data ===
-
-The user provides the following simulation data. This is your only source of information.
+The user provides the following simulation data. This is your only source of information for answering questions about the simulation.
 
 **Simulation Parameters:**
 - Initial Agent Population: {{{initialAgentCount}}}
@@ -50,6 +49,7 @@ The user provides the following simulation data. This is your only source of inf
 \`\`\`
 
 === Conversation History ===
+This is the conversation you have had with the user so far. Use it to maintain context.
 {{#each messages}}
 **{{this.role}}**: {{this.content}}
 {{/each}}
