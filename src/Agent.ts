@@ -18,9 +18,8 @@ export class Agent {
 
   // Agent behavior parameters, now derived from genome
   public moveSpeed!: number;
-  public metabolicCost!: number;
-  public foodConsumptionAmount!: number;
-  public reproductionThreshold!: number;
+  public foodConsumptionAmount!: number; // Obsolete
+  public reproductionThreshold!: number; // Obsolete
   public color!: string;
   public sensoryRadius!: number; // User called this vision
   public turningSpeed!: number;
@@ -40,8 +39,7 @@ export class Agent {
     // Trait mapping based on user specification
     this.moveSpeed = mapLinear(this.genome[0], 2, 6); // Gene 0: speed
     this.sensoryRadius = mapLinear(this.genome[1], 10, 20); // Gene 1: vision
-    this.metabolicCost = mapLinear(this.genome[2], 0.05, 0.2); // Gene 2: metabolicCost
-    
+
     // Other traits are now primarily driven by SIM_CONFIG
     this.foodConsumptionAmount = 0; // No longer directly used
     this.reproductionThreshold = 0; // No longer directly used
@@ -116,7 +114,13 @@ export class Agent {
     else if (this.y >= world.height) this.y -= world.height;
 
     // Metabolism
-    this.energy -= this.metabolicCost * dt;
+    const moveCost = step * SIM_CONFIG.moveCostPerStep;
+    this.energy -= moveCost;
+    world.moveDebit += moveCost;
+
+    const basalCost = SIM_CONFIG.basalRate * dt;
+    this.energy -= basalCost;
+    world.basalDebit += basalCost;
 
     // Death by starvation
     if (this.energy < SIM_CONFIG.deathThreshold) {
