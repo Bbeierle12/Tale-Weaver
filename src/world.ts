@@ -45,7 +45,7 @@ export class World {
   }
 
   public spawnAgent(x: number, y: number) {
-    this.agents.push(new Agent(this, x, y));
+    this.agents.push(new Agent(x, y));
   }
 
   public update(dt: number) {
@@ -59,7 +59,7 @@ export class World {
     }
 
     // update agents
-    for (const a of this.agents) a.update(dt);
+    for (const a of this.agents) a.update(dt, this.width, this.height);
     
     // cull the dead
     for (let i = this.agents.length - 1; i >= 0; i--) {
