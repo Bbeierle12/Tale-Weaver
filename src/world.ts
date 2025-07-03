@@ -62,7 +62,8 @@ export class World {
     for (const a of this.agents) a.update(dt, this.width, this.height);
     
     // cull the dead
-    for (let i = this.agents.length - 1; i >= 0; i--) {
+    let i = this.agents.length;
+    while (i--) {
       if (this.agents[i].dead) {
         this.agents.splice(i, 1);
         this.deadCount++;
@@ -75,6 +76,9 @@ export class World {
     if (!this.agents.length) return 0;
     return this.agents.reduce((s, a) => s + a.energy, 0) / this.agents.length;
   }
+
+  get alive() { return this.agents.length; }
+  get deadTotal() { return this.deadCount; }
 
   public getStats() {
     const totalFood = this.tiles.flat().reduce((sum, tile) => sum + tile, 0);
