@@ -1,44 +1,72 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
-import { Hud } from '@/components/hud';
-import { Narrator } from '@/components/narrator';
+import type { EcosystemState } from '@/ai/schemas';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import type { EcosystemState } from '@/ai/schemas';
-import { Play, RotateCw } from 'lucide-react';
-import { SimController, INITIAL_NARRATION } from '@/SimController';
+import { INITIAL_NARRATION, INITIAL_STATE } from '@/constants';
+import { Pause, Play, RotateCw, StepForward } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Renderer } from '../renderer';
+import { SimController } from '../SimController';
+import { World } from '../world';
+import { Hud } from './hud';
+import { Narrator } from './narrator';
 
 export function SimulationClient() {
-  const [isPending, startTransition] = useTransition();
-  // Use state to hold the controller instance to persist it across renders.
-  const [controller] = useState(() => new SimController());
-  
-  // Sync React state with the controller's state.
   const [simulationState, setSimulationState] =
-    useState<EcosystemState>(controller.getState());
-  const [narration, setNarration] = useState<string>(controller.getNarration());
+    useState<EcosystemState>(INITIAL_STATE);
+  const [narration, setNarration] = useState<string>(INITIAL_NARRATION);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isClient, setIsClient] = useState(false);
+
+  // State for the simulation instances
+  const [controller, setController] = useState<SimController | null>(null);
+  const [worldInstance, setWorldInstance] = useState<World | null>(null);
 
   useEffect(() => {
     setIsClient(true);
+
+    const world = new World();
+    const renderer = new Renderer(
+      world,
+      setSimulationState,
+      setNarration,
+      setIsLoading
+    );
+    const simController = new SimController(world, renderer);
+
+    setWorldInstance(world);
+    setController(simController);
+
+    simController.start();
   }, []);
 
-  const handleNextDay = () => {
-    startTransition(async () => {
-      await controller.nextDay();
-      // Create a new object to ensure React detects the state change.
-      setSimulationState({ ...controller.getState() });
-      setNarration(controller.getNarration());
-    });
+  const handleTogglePause = () => {
+    if (controller) {
+      controller.togglePause();
+      setIsPaused(controller.paused);
+    }
+  };
+
+  const handleStep = () => {
+    controller?.step();
   };
 
   const handleReset = () => {
-    controller.reset();
-    // Create a new object to ensure React detects the state change.
-    setSimulationState({ ...controller.getState() });
-    setNarration(controller.getNarration());
+    if (worldInstance) {
+      worldInstance.reset();
+      // Force an immediate UI update
+      setSimulationState({ ...worldInstance.getState() });
+      setNarration(worldInstance.getNarration());
+      setIsLoading(false);
+      // If it was paused, resume it on reset
+      if (controller?.paused) {
+        controller.togglePause();
+      }
+      setIsPaused(false);
+    }
   };
 
   if (!isClient) {
@@ -66,7 +94,7 @@ export function SimulationClient() {
 
       <main className="flex flex-col lg:flex-row items-start justify-center gap-8 w-full flex-grow mt-12 lg:mt-0">
         <div className="w-full lg:w-2/3 max-w-4xl min-h-[120px]">
-          <Narrator narration={narration} isLoading={isPending} />
+          <Narrator narration={narration} isLoading={isLoading} />
         </div>
 
         <Card className="w-full lg:w-1/3 max-w-md bg-background/30 border-primary/30 backdrop-blur-sm shadow-2xl shadow-primary/10">
@@ -78,16 +106,27 @@ export function SimulationClient() {
           <CardContent className="p-6 pt-0 flex flex-col gap-4">
             <div className="flex gap-4">
               <Button
-                onClick={handleNextDay}
-                disabled={isPending}
+                onClick={handleTogglePause}
+                disabled={!controller}
                 className="w-full"
               >
-                <Play className="mr-2 h-4 w-4" />
-                {isPending ? 'Simulating...' : 'Next Day'}
+                {isPaused ? (
+                  <Play className="mr-2 h-4 w-4" />
+                ) : (
+                  <Pause className="mr-2 h-4 w-4" />
+                )}
+                {isPaused ? 'Resume' : 'Pause'}
+              </Button>
+              <Button
+                onClick={handleStep}
+                disabled={!isPaused || isLoading}
+                variant="outline"
+              >
+                <StepForward className="h-4 w-4" />
               </Button>
               <Button
                 onClick={handleReset}
-                disabled={isPending}
+                disabled={isLoading}
                 variant="outline"
               >
                 <RotateCw className="h-4 w-4" />

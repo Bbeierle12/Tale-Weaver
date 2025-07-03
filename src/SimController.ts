@@ -1,50 +1,62 @@
-import { runSimulationStepAction } from '@/app/actions';
-import type { EcosystemState } from '@/ai/schemas';
+import type { World } from './world';
+import type { Renderer } from './renderer';
 
-export const INITIAL_NARRATION =
-  'A new world awakens, teeming with potential. Lush grass sways in the gentle breeze, a small warren of rabbits nibbles contentedly, and a lone fox watches from a distance. The story of this ecosystem is ready to be written.';
-
-export const INITIAL_STATE: EcosystemState = {
-  day: 1,
-  populations: {
-    Grass: 1000,
-    Rabbits: 20,
-    Foxes: 5,
-  },
-  environment: {
-    temperature: 15,
-    rainfall: 5,
-  },
-  log: ['The simulation has begun in a temperate meadow.'],
-};
-
+/**
+ * A deterministic heartbeat that advances the world and renderer.
+ *  – Holds all timing state in one place
+ *  – Supports pause / resume / single‑step
+ */
 export class SimController {
-  private state: EcosystemState;
-  private narration: string;
+  private last = 0;
+  private readonly world: World;
+  private readonly renderer: Renderer;
 
-  constructor() {
-    this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
-    this.narration = INITIAL_NARRATION;
+  private _paused = false;
+  private _stepOnce = false;
+
+  /** public getter so HUD / tests can read */
+  get paused() {
+    return this._paused;
   }
 
-  public getState(): EcosystemState {
-    return this.state;
+  constructor(world: World, renderer: Renderer) {
+    this.world = world;
+    this.renderer = renderer;
   }
 
-  public getNarration(): string {
-    return this.narration;
+  /** Toggle pause state */
+  togglePause(): void {
+    this._paused = !this._paused;
   }
 
-  public async nextDay(): Promise<void> {
-    const result = await runSimulationStepAction(this.state);
-    if (result) {
-      this.state = result.newState;
-      this.narration = result.narration;
+  /** Advance exactly one tick when paused */
+  step(): void {
+    if (!this._paused) return;
+    this._stepOnce = true;
+  }
+
+  /** Kick‑off RAF loop */
+  start(): void {
+    if (typeof window === 'undefined') {
+      return;
     }
+    this.last = performance.now();
+    requestAnimationFrame(this.loop);
   }
 
-  public reset(): void {
-    this.state = JSON.parse(JSON.stringify(INITIAL_STATE));
-    this.narration = INITIAL_NARRATION;
-  }
+  // ————————————————————————————————— private —————————————————————————————————
+
+  private loop = (now: number) => {
+    const dt = (now - this.last) / 1000;
+    this.last = now;
+
+    const shouldUpdate = !this._paused || this._stepOnce;
+    if (shouldUpdate) {
+      this._stepOnce = false;
+      this.world.update(dt);
+      this.renderer.draw();
+    }
+
+    requestAnimationFrame(this.loop);
+  };
 }
