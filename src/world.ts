@@ -1,6 +1,7 @@
 import { Agent } from './Agent';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
+import { RunningStats } from './utils/stats';
 
 export class World {
   public width: number;
@@ -80,33 +81,18 @@ export class World {
 
   /** Calculates all stats for the current tick and logs them to history. */
   private logTickStats(): void {
-    // Agent-level stats
-    let sumEnergy = 0;
-    let minEnergy = this.agents.length > 0 ? Infinity : 0;
-    let maxEnergy = this.agents.length > 0 ? -Infinity : 0;
+    const energyStats = new RunningStats();
     for (const agent of this.agents) {
-      const e = agent.energy;
-      sumEnergy += e;
-      if (e < minEnergy) minEnergy = e;
-      if (e > maxEnergy) maxEnergy = e;
+      energyStats.push(agent.energy);
     }
-    const avgEnergy = this.agents.length > 0 ? sumEnergy / this.agents.length : 0;
-    let sumSqDiffEnergy = 0;
-    for (const agent of this.agents) {
-        sumSqDiffEnergy += Math.pow(agent.energy - avgEnergy, 2);
-    }
-    const energySD = this.agents.length > 1 ? Math.sqrt(sumSqDiffEnergy / (this.agents.length - 1)) : 0;
 
-    // Tile-level stats
-    const flatTiles: number[] = [];
-    let minTileFood = this.tiles.length > 0 ? Infinity : 0;
-    let maxTileFood = this.tiles.length > 0 ? -Infinity : 0;
+    const tileFoodStats = new RunningStats();
+    const flatTiles: number[] = []; // Still needed for Gini
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const food = this.tiles[y][x];
+        tileFoodStats.push(food);
         flatTiles.push(food);
-        if (food < minTileFood) minTileFood = food;
-        if (food > maxTileFood) maxTileFood = food;
       }
     }
     const foodGini = this.calculateGini(flatTiles);
@@ -116,14 +102,14 @@ export class World {
       liveAgents: this.agents.length,
       births: this.birthsThisTick,
       deaths: this.deathsThisTick,
-      avgEnergy,
-      energySD,
-      minEnergy,
-      maxEnergy,
+      avgEnergy: energyStats.count > 0 ? energyStats.avg : 0,
+      energySD: energyStats.count > 0 ? energyStats.sd : 0,
+      minEnergy: energyStats.count > 0 ? energyStats.min : 0,
+      maxEnergy: energyStats.count > 0 ? energyStats.max : 0,
       avgTileFood: this.avgTileFood,
-      avgTileFoodSD: this.avgTileFoodSD,
-      minTileFood,
-      maxTileFood,
+      avgTileFoodSD: tileFoodStats.sd,
+      minTileFood: tileFoodStats.min,
+      maxTileFood: tileFoodStats.max,
       foodGini,
     });
   }
@@ -173,21 +159,6 @@ export class World {
   get avgTileFood(): number {
     if (this.width * this.height === 0) return 0;
     return this._totalFood / (this.width * this.height);
-  }
-
-  /** Standard deviation of food level across all tiles. */
-  get avgTileFoodSD(): number {
-    const numTiles = this.width * this.height;
-    if (numTiles === 0) return 0;
-    
-    const mean = this.avgTileFood;
-    let sumSqDiff = 0;
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        sumSqDiff += Math.pow(this.tiles[y][x] - mean, 2);
-      }
-    }
-    return Math.sqrt(sumSqDiff / numTiles);
   }
 
   /** Average energy of all alive agents (0 if no agents). */
