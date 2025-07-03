@@ -6,7 +6,7 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Square, Bot } from 'lucide-react';
+import { Pause, Play, RotateCcw, Square, Bot, Download } from 'lucide-react';
 import { AnalysisDialog } from './analysis-dialog';
 import { analyzeSimulationAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -128,6 +128,28 @@ export function SimulationClient() {
     }
   }, [world, peakAgentCount, toast]);
 
+  const handleDownloadLog = useCallback(() => {
+    if (!world || world.history.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No Data to Download',
+        description: 'Run the simulation to generate data first.',
+      });
+      return;
+    }
+
+    const jsonl = world.history.map((tick) => JSON.stringify(tick)).join('\n');
+    const blob = new Blob([jsonl], {type: 'application/jsonl'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `simulation-log-seed-${seed}.jsonl`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [world, seed, toast]);
+
   useEffect(() => {
     // On mount, reset with a random seed to avoid hydration errors
     // and provide a different simulation on each load.
@@ -179,6 +201,10 @@ export function SimulationClient() {
         <Button onClick={handleAnalyze} variant="outline" disabled={!isPaused || isAnalyzing}>
           <Bot className="mr-2 h-4 w-4" />
           {isAnalyzing ? 'Analyzing...' : 'Analyze'}
+        </Button>
+        <Button onClick={handleDownloadLog} variant="outline" disabled={!isPaused || hudData.tick === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Download Log
         </Button>
         <div className="flex items-center gap-2 pl-4">
           <Label htmlFor="seed-input" className="text-white font-mono text-sm">Seed</Label>
