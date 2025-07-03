@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { INITIAL_NARRATION, INITIAL_STATE } from '@/constants';
 import { Pause, Play, RotateCw, StepForward } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Renderer } from '../renderer';
 import { SimController } from '../SimController';
 import { World } from '../world';
@@ -43,16 +43,32 @@ export function SimulationClient() {
     simController.start();
   }, []);
 
-  const handleTogglePause = () => {
+  const handleTogglePause = useCallback(() => {
     if (controller) {
       controller.togglePause();
       setIsPaused(controller.paused);
     }
-  };
+  }, [controller]);
 
-  const handleStep = () => {
+  const handleStep = useCallback(() => {
     controller?.step();
-  };
+  }, [controller]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === 'Space') {
+        event.preventDefault(); // Prevent page scroll
+        handleTogglePause();
+      } else if (event.code === 'KeyN') {
+        handleStep();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleTogglePause, handleStep]);
 
   const handleReset = () => {
     if (worldInstance) {
