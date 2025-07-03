@@ -1,34 +1,28 @@
 'use server';
 
-import {
-  generateWorldNarration,
-  GenerateWorldNarrationInput,
-} from '@/ai/flows/generate-world-narration';
-import {
-  adaptNarrationToGameState,
-  AdaptNarrationToGameStateInput,
-} from '@/ai/flows/adapt-narration-to-game-state';
+import {simulateEcosystemStep} from '@/ai/flows/generate-world-narration';
+import type {
+  EcosystemState,
+  SimulationStepOutput,
+} from '@/ai/schemas';
 
-export async function generateInitialNarrationAction(
-  input: GenerateWorldNarrationInput
-) {
+export async function runSimulationStepAction(
+  currentState: EcosystemState
+): Promise<SimulationStepOutput> {
   try {
-    const { narration } = await generateWorldNarration(input);
-    return narration;
+    const result = await simulateEcosystemStep(currentState);
+    return result;
   } catch (error) {
-    console.error('Error generating initial narration:', error);
-    return 'The ether is clouded. The narrator is silent for now...';
-  }
-}
-
-export async function adaptNarrationAction(
-  input: AdaptNarrationToGameStateInput
-) {
-  try {
-    const { narration } = await adaptNarrationToGameState(input);
-    return narration;
-  } catch (error) {
-    console.error('Error adapting narration:', error);
-    return 'A strange interference disrupts the narrative flow...';
+    console.error('Error running simulation step:', error);
+    // Return a valid output structure even on error, to prevent crashing the client
+    const logMessage =
+      'A cosmic anomaly disrupted the flow of time. The ecosystem remains unchanged.';
+    return {
+      newState: {
+        ...currentState,
+        log: [...currentState.log, logMessage].slice(-5),
+      },
+      narration: logMessage,
+    };
   }
 }
