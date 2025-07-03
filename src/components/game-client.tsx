@@ -288,7 +288,7 @@ export function SimulationClient() {
             )}
             {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
           </Button>
-          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Step Forward (N)">
+          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward (N)">
             <StepForward className="h-4 w-4" />
           </Button>
           <Button onClick={() => resetSimulation(seed)} variant="outline">
