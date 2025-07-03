@@ -10,8 +10,8 @@ export const SIM_CONFIG = {
   deathThreshold: 1e-3, // E < deathThreshold ⇒ dead
 
   // energy costs
-  moveCostPerStep: 0.02, // energy lost per tile moved
-  basalRate: 0.01, // energy lost per tick for upkeep
+  moveCostPerStep: 0, // In v0.2.1, this is disabled.
+  basalRate: 0, // In v0.2.1, this is disabled.
 
   // logging / telemetry
   histBins: 10, // energy‑histogram bins

@@ -10,14 +10,6 @@ export const TickStatsSchema = z.object({
   population: z.number().describe('The number of agents alive at this tick.'),
   births: z.number().describe('The number of new agents born this tick.'),
   deaths: z.number().describe('The number of agents that died this tick.'),
-  totalBasalCost: z
-    .number()
-    .describe(
-      'Total energy spent by all agents on basal metabolism this tick.'
-    ),
-  totalMoveCost: z
-    .number()
-    .describe('Total energy spent by all agents on movement this tick.'),
   avgEnergy: z.number().describe('The average energy of agents at this tick.'),
   energySD: z
     .number()

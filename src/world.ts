@@ -17,8 +17,6 @@ export class World {
   // Telemetry
   public births = 0;
   public deaths = 0;
-  public moveDebit = 0;
-  public basalDebit = 0;
   private forageBuf: string[] = new Array(SIM_CONFIG.forageBuf);
   private fp = 0;
   private snapshots: string[] = [];
@@ -81,8 +79,6 @@ export class World {
     this.tick++;
     this.births = 0;
     this.deaths = 0;
-    this.moveDebit = 0;
-    this.basalDebit = 0;
 
     this.regrow(dt);
 
@@ -164,12 +160,11 @@ export class World {
       population: this.agents.length,
       births: this.births,
       deaths: this.deaths,
-      totalBasalCost: this.basalDebit,
-      totalMoveCost: this.moveDebit,
       avgEnergy: hasAgents ? energyStats.avg : 0,
       energySD: hasAgents ? energyStats.sd : 0,
       minEnergy: hasAgents ? energyStats.min : 0,
       maxEnergy: hasAgents ? energyStats.max : 0,
+      energyHistogram: this.tick % 50 === 0 ? this.hist.toCSV(this.tick).split(',').slice(1).map(Number) : undefined,
       avgTileFood: tileFoodStats.avg,
       avgTileFoodSD: tileFoodStats.sd,
       minTileFood: tileFoodStats.min,

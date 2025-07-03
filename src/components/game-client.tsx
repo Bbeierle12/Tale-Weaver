@@ -153,8 +153,8 @@ export function SimulationClient() {
       return;
     }
 
-    const header = 'tick,population,births,deaths,totalBasalCost,totalMoveCost,avgEnergy,energySD,minEnergy,maxEnergy,avgTileFood,avgTileFoodSD,minTileFood,maxTileFood,foodGini\n';
-    const csv = world.history.map(s => `${s.tick},${s.population},${s.births},${s.deaths},${s.totalBasalCost.toFixed(2)},${s.totalMoveCost.toFixed(2)},${s.avgEnergy.toFixed(2)},${s.energySD.toFixed(2)},${s.minEnergy.toFixed(2)},${s.maxEnergy.toFixed(2)},${s.avgTileFood.toFixed(2)},${s.avgTileFoodSD.toFixed(2)},${s.minTileFood.toFixed(2)},${s.maxTileFood.toFixed(2)},${s.foodGini.toFixed(2)}`).join('\n');
+    const header = 'tick,population,births,deaths,avgEnergy,energySD,minEnergy,maxEnergy,avgTileFood,avgTileFoodSD,minTileFood,maxTileFood,foodGini\n';
+    const csv = world.history.map(s => `${s.tick},${s.population},${s.births},${s.deaths},${s.avgEnergy.toFixed(2)},${s.energySD.toFixed(2)},${s.minEnergy.toFixed(2)},${s.maxEnergy.toFixed(2)},${s.avgTileFood.toFixed(2)},${s.avgTileFoodSD.toFixed(2)},${s.minTileFood.toFixed(2)},${s.maxTileFood.toFixed(2)},${s.foodGini.toFixed(2)}`).join('\n');
     const blob = new Blob([header + csv], {type: 'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

@@ -113,15 +113,6 @@ export class Agent {
     if (this.y < 0) this.y += world.height;
     else if (this.y >= world.height) this.y -= world.height;
 
-    // Metabolism
-    const moveCost = step * SIM_CONFIG.moveCostPerStep;
-    this.energy -= moveCost;
-    world.moveDebit += moveCost;
-
-    const basalCost = SIM_CONFIG.basalRate * dt;
-    this.energy -= basalCost;
-    world.basalDebit += basalCost;
-
     // Death by starvation
     if (this.energy < SIM_CONFIG.deathThreshold) {
       this.dead = true;
