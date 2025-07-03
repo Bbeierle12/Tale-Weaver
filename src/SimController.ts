@@ -7,7 +7,6 @@ import type { Renderer } from './renderer';
  *  – Supports pause / resume / single‑step
  */
 export class SimController {
-  private last = 0;
   private readonly world: World;
   private readonly renderer: Renderer;
   private animationFrameId: number | null = null;
@@ -41,7 +40,6 @@ export class SimController {
     if (typeof window === 'undefined' || this.animationFrameId) {
       return;
     }
-    this.last = performance.now();
     this.animationFrameId = requestAnimationFrame(this.loop);
   }
 
@@ -55,15 +53,13 @@ export class SimController {
 
   // ————————————————————————————————— private —————————————————————————————————
 
-  private loop = (now: number) => {
+  private loop = () => {
     if (!this.animationFrameId) return; // a double check to ensure it's stopped
-    const dt = (now - this.last) / 1000;
-    this.last = now;
 
     const shouldUpdate = !this._paused || this._stepOnce;
     if (shouldUpdate) {
       this._stepOnce = false;
-      this.world.update(dt);
+      this.world.update(); // dt is no longer needed for per-tick updates
       this.renderer.draw();
     }
 

@@ -14,49 +14,57 @@ export class World {
   public birthsTotal = 0;
   public tick = 0;
 
-  // Telemetry
+  // Per-tick accumulators
   public births = 0;
   public deaths = 0;
+  public moveDebit = 0;
+  public basalDebit = 0;
+
+  // Telemetry
   private forageBuf: string[] = new Array(SIM_CONFIG.forageBuf);
   private fp = 0;
   private snapshots: string[] = [];
   private hist = new Hist(SIM_CONFIG.histBins);
   private histRows: string[] = [];
-
-  // Data logging for AI analysis (kept for existing features)
   public history: TickStats[] = [];
 
-  public readonly growthRate: number; // food regrowth per second (per regrowth event)
-  private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
+  public readonly growthRate: number;
+  private readonly growthCount: number = 400;
   private _totalFood: number = 0;
 
   constructor(width = 200, height = 200, growthRate?: number) {
     this.width = width;
     this.height = height;
     this.growthRate = growthRate ?? SIM_CONFIG.growthRate;
-    // Initialize tiles with a moderate food level
     this.tiles = Array.from({ length: height }, () =>
       Array.from({ length: width }, () => 0.5)
     );
     this._totalFood = 0.5 * width * height;
   }
 
-  public recordForage(t: number, a: Agent, x: number, y: number, gain: number) {
-    this.forageBuf[this.fp++] = `${t},${a.id},${x},${y},${gain.toFixed(2)}`;
+  public eatAt(x: number, y: number, biteEnergy: number): number {
+    const foodUnits = biteEnergy / SIM_CONFIG.foodValue;
+    const available = this.tiles[y][x];
+    const eatenUnits = available >= foodUnits ? foodUnits : available;
+    if (eatenUnits > 0) {
+      this.tiles[y][x] = available - eatenUnits;
+      this._totalFood -= eatenUnits;
+    }
+    return eatenUnits * SIM_CONFIG.foodValue;
+  }
+
+  public markDeath() {
+    this.deaths++;
+  }
+
+  public recordForage(t: number, a: Agent, gain: number) {
+    this.forageBuf[this.fp++] = `${t},${a.id},${a.x},${a.y},${gain.toFixed(2)}`;
     if (this.fp === this.forageBuf.length) this.fp = 0;
   }
 
-  // Getters for CSV download
-  public getForageLog(): readonly string[] {
-    // Return only the populated part of the ring buffer
-    return this.forageBuf.slice(0, this.fp);
-  }
-  public getSnapshots(): readonly string[] {
-    return this.snapshots;
-  }
-  public getHistRows(): readonly string[] {
-    return this.histRows;
-  }
+  public getForageLog(): readonly string[] { return this.forageBuf.slice(0, this.fp); }
+  public getSnapshots(): readonly string[] { return this.snapshots; }
+  public getHistRows(): readonly string[] { return this.histRows; }
 
   public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array): Agent {
     const agent = new Agent(x, y, energy, genome);
@@ -76,66 +84,57 @@ export class World {
   }
 
   /** World update: regrow food and update all agents */
-  public update(dt: number): void {
+  public update(): void {
     this.tick++;
     this.births = 0;
     this.deaths = 0;
+    this.basalDebit = 0;
+    this.moveDebit = 0;
 
-    this.regrow(dt);
+    this.regrow(1); // dt is now 1 tick
 
-    // Update all agents. They will directly modify world properties.
+    const newChildren: Agent[] = [];
     for (const a of this.agents) {
-      a.update(dt, this);
-    }
-
-    this.birthsTotal += this.births;
-
-    // Cull the dead
-    let i = this.agents.length;
-    while (i--) {
-      if (this.agents[i].dead) {
-        this.agents.splice(i, 1);
-        this.deathsTotal++;
+      const child = a.tick(this);
+      if (child) {
+        newChildren.push(child);
       }
     }
 
-    // Agent Snapshot
+    const aliveAgents = this.agents.filter(a => a.energy >= SIM_CONFIG.deathThreshold);
+
+    this.agents = aliveAgents;
+    this.agents.push(...newChildren);
+
+    this.births = newChildren.length;
+    this.birthsTotal += this.births;
+    this.deathsTotal += this.deaths;
+
     if (this.tick % SIM_CONFIG.snapshotInterval === 0) {
-      this.agents.forEach((a) => {
-        this.snapshots.push(
-          `${this.tick},${a.id},${a.x | 0},${a.y | 0},${a.energy.toFixed(
-            2
-          )},${a.age.toFixed(1)}`
-        );
-      });
+      this.snapshots.push(
+        ...this.agents.map(a => `${this.tick},${a.id},${a.x | 0},${a.y | 0},${a.energy.toFixed(2)},${a.age.toFixed(1)}`)
+      );
     }
 
-    // Histogram
+    this.hist.reset();
     this.agents.forEach(a => this.hist.add(a.energy));
-    
-    // Record history for this tick for AI analysis
+    this.histRows.push(`${this.tick},${this.hist.toArray().join(',')}`);
+
     if (this.tick > 0) {
       this.logTickStats();
     }
-    
-    this.histRows.push(`${this.tick},${this.hist.toArray().join(',')}`);
-    this.hist.reset();
   }
 
-  /** Calculates all stats for the current tick and logs them to history. */
   private logTickStats(): void {
     const hasAgents = this.agents.length > 0;
-    // Agent stats
     const energyStats = new RunningStats();
     for (const agent of this.agents) {
       energyStats.push(agent.energy);
     }
 
-    // World food stats
     const tileFoodStats = new RunningStats();
-    // For Gini, use reservoir sampling for performance on large worlds.
     const foodSample: number[] = [];
-    const sampleSize = Math.floor(this.width * this.height * 0.1); // 10% sample
+    const sampleSize = Math.floor(this.width * this.height * 0.1);
     let itemsSeen = 0;
 
     for (let y = 0; y < this.height; y++) {
@@ -143,7 +142,6 @@ export class World {
         const food = this.tiles[y][x];
         tileFoodStats.push(food);
         itemsSeen++;
-        // Reservoir sampling:
         if (foodSample.length < sampleSize) {
           foodSample.push(food);
         } else {
@@ -175,7 +173,6 @@ export class World {
     });
   }
 
-  /** Regrow food on N random tiles, where N ≈ growthCount * dt (clamped by tile cap = 1) */
   private regrow(dt: number): void {
     if (dt <= 0 || this.growthRate <= 0) return;
     const events = Math.round(this.growthCount * dt);
@@ -194,20 +191,16 @@ export class World {
     }
   }
 
-  /** Average food level across all tiles (0 if world is empty). */
   get avgTileFood(): number {
     if (this.width * this.height === 0) return 0;
     return this._totalFood / (this.width * this.height);
   }
 
-  /** Average energy of all alive agents (0 if no agents). */
   get avgEnergy(): number {
     if (this.agents.length === 0) return 0;
     let sumEnergy = 0;
     for (const agent of this.agents) {
-      if (!agent.dead) {
-        sumEnergy += agent.energy;
-      }
+      sumEnergy += agent.energy;
     }
     return this.agents.length ? sumEnergy / this.agents.length : 0;
   }
