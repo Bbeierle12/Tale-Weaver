@@ -23,6 +23,16 @@ function expect(actual: any) {
         );
       }
     },
+    toBeGreaterThanOrEqual: (expected: any) => {
+      if (actual < expected) {
+        console.assert(false, `Assertion failed: Expected ${actual} to be >= ${expected}`);
+      }
+    },
+    toBeLessThanOrEqual: (expected: any) => {
+      if (actual > expected) {
+        console.assert(false, `Assertion failed: Expected ${actual} to be <= ${expected}`);
+      }
+    },
   };
 }
 
@@ -34,6 +44,10 @@ class DummyRenderer {
 describe('SimController deterministic loop', () => {
   it('advances 100 ticks without error', () => {
     const world = new World();
+    // Populate world for test since constructor is now empty.
+    for (let i = 0; i < 10; i++) {
+      world.spawnAgent(Math.random() * world.width, Math.random() * world.height);
+    }
     const render = new DummyRenderer() as any; // satisfies interface
     const sim = new SimController(world, render);
 

@@ -16,6 +16,13 @@ export function SimulationClient() {
     if (!canvas) return;
 
     const newWorld = new World();
+    // Spawn initial agents
+    for (let i = 0; i < 300; i++) {
+      newWorld.spawnAgent(
+        Math.random() * newWorld.width,
+        Math.random() * newWorld.height
+      );
+    }
     setWorld(newWorld);
 
     const renderer = new Renderer(canvas, newWorld);

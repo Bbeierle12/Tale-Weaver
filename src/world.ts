@@ -6,16 +6,11 @@ export class World {
   /** Live agents */
   public agents: Agent[] = [];
   /** Dead counter for HUD */
-  public deadCount = 0;
+  public dead = 0;
   public tick = 0;
 
   constructor() {
-    for (let i = 0; i < 300; i++) {
-      this.spawnAgent(
-        Math.random() * this.width,
-        Math.random() * this.height
-      );
-    }
+    // World starts empty, agents are spawned by the simulation controller.
   }
 
   public spawnAgent(
@@ -38,7 +33,7 @@ export class World {
     const idx = this.agents.indexOf(a);
     if (idx >= 0) {
       this.agents.splice(idx, 1);
-      this.deadCount++;
+      this.dead++;
     }
   }
 
@@ -51,13 +46,5 @@ export class World {
             a.update(dt);
         }
     }
-  }
-
-  /* Getters for HUD */
-  get alive(): number {
-    return this.agents.length;
-  }
-  get deadTotal(): number {
-    return this.deadCount;
   }
 }
