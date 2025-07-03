@@ -38,7 +38,11 @@ export class Agent {
   private static mutate (src: Float32Array): Float32Array {
     const child = new Float32Array(src)
     for (let i = 0; i < child.length; i++) {
-      if (rng() < 0.01) child[i] += (rng() * 2 - 1) * 0.1
+      if (rng() < 0.01) {
+        child[i] += (rng() * 2 - 1) * 0.1
+        // Clamp the gene value to prevent it from going out of the [0, 1] range.
+        child[i] = Math.max(0, Math.min(1, child[i]));
+      }
     }
     return child
   }
@@ -56,6 +60,7 @@ export class Agent {
     this.move(dir, world)
 
     // Forage
+    // Correctly calculate bite size in food units and convert eaten units back to energy.
     const biteInFoodUnits = SIM_CONFIG.biteEnergy / SIM_CONFIG.foodValue;
     const eatenUnits = world.eatAt(this.x, this.y, biteInFoodUnits);
     const energyGained = eatenUnits * SIM_CONFIG.foodValue;
