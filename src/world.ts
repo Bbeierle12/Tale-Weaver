@@ -135,9 +135,9 @@ export class World {
       totalMoveCost += (agent.moveSpeed * agent.moveSpeed * 0.005) * dt;
     }
 
-    // Energy Histogram (every 100 ticks)
+    // Energy Histogram (every 50 ticks)
     let energyHistogram: number[] | undefined = undefined;
-    if (hasAgents && this.tick % 100 === 0) {
+    if (hasAgents && this.tick % 50 === 0) {
       const min = energyStats.min;
       const max = energyStats.max;
       const range = max - min;
