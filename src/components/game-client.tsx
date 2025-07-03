@@ -6,7 +6,7 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Square, Download, MessageSquare, BrainCircuit, FileText } from 'lucide-react';
+import { Pause, Play, RotateCcw, Square, Download, MessageSquare, BrainCircuit, FileText, StepForward } from 'lucide-react';
 import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
@@ -116,6 +116,10 @@ export function SimulationClient() {
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
     setIsPaused((p) => !p);
+  }, []);
+  
+  const handleStep = useCallback(() => {
+    controllerRef.current?.step();
   }, []);
 
   const handleDownloadLog = useCallback(() => {
@@ -273,41 +277,50 @@ export function SimulationClient() {
       </Tabs>
 
       <canvas ref={canvasRef} className="h-full w-full" />
-      <div className="absolute bottom-4 left-4 flex items-center gap-2">
-        <Button onClick={handleTogglePause} className="w-28">
-          {isPaused ? (
-            <Play className="mr-2 h-4 w-4" />
-          ) : (
-            <Pause className="mr-2 h-4 w-4" />
-          )}
-          {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
-        </Button>
-        <Button onClick={() => resetSimulation(seed)} variant="outline">
-          <Square className="mr-2 h-4 w-4" />
-          Stop
-        </Button>
-        <Button onClick={() => resetSimulation(seed)} variant="outline">
-          <RotateCcw className="mr-2 h-4 w-4" />
-          Reset
-        </Button>
-        <Button onClick={handleAnalyze} variant="outline" disabled={!isPaused || hudData.tick === 0}>
-            <FileText className="mr-2 h-4 w-4" />
-            Analyze
-        </Button>
-        <Button onClick={handleDownloadLog} variant="outline" disabled={!isPaused || hudData.tick === 0}>
-            <Download className="mr-2 h-4 w-4" />
-            Download Log
-        </Button>
-        <div className="flex items-center gap-2 pl-4">
-          <Label htmlFor="seed-input" className="text-white font-mono text-sm">Seed</Label>
-          <Input
-            id="seed-input"
-            type="number"
-            value={seed}
-            onChange={(e) => setSeedValue(Number(e.target.value) || 0)}
-            className="w-24 bg-gray-800 border-gray-700"
-            disabled={!isPaused}
-          />
+      <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+        {/* Left-aligned controls */}
+        <div className="flex items-center gap-2">
+          <Button onClick={handleTogglePause} className="w-28">
+            {isPaused ? (
+              <Play className="mr-2 h-4 w-4" />
+            ) : (
+              <Pause className="mr-2 h-4 w-4" />
+            )}
+            {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
+          </Button>
+          <Button onClick={() => resetSimulation(seed)} variant="outline">
+            <Square className="mr-2 h-4 w-4" />
+            Stop
+          </Button>
+          <Button onClick={() => resetSimulation(seed)} variant="outline">
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Reset
+          </Button>
+          <div className="flex items-center gap-2 pl-4">
+            <Label htmlFor="seed-input" className="text-white font-mono text-sm">Seed</Label>
+            <Input
+              id="seed-input"
+              type="number"
+              value={seed}
+              onChange={(e) => setSeedValue(Number(e.target.value) || 0)}
+              className="w-24 bg-gray-800 border-gray-700"
+              disabled={!isPaused}
+            />
+          </div>
+        </div>
+
+        {/* Right-aligned controls */}
+        <div className="flex items-center gap-2">
+          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Step Forward (N)">
+            <StepForward className="h-4 w-4" />
+          </Button>
+          <Button onClick={handleAnalyze} variant="outline" disabled={!isPaused || hudData.tick === 0}>
+              <FileText className="mr-2 h-4 w-4" />
+              Analyze
+          </Button>
+          <Button onClick={handleDownloadLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Log">
+              <Download className="h-4 w-4" />
+          </Button>
         </div>
       </div>
        <AnalysisDialog
