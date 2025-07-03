@@ -1,14 +1,6 @@
 import type { Agent } from './Agent';
 import type { World } from './world';
 
-// Map speed [2,6] → RGB blue→red
-const speedToColor = (s: number): string => {
-  const t = (s - 2) / 4;
-  const r = Math.round(255 * t);
-  const b = Math.round(255 * (1 - t));
-  return `rgb(${r},0,${b})`;
-};
-
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
 
@@ -93,9 +85,9 @@ export class Renderer {
       }
     }
 
-    // draw agents (colored by speed)
+    // draw agents
     for (const a of world.agents) {
-      ctx.fillStyle = speedToColor(a.speed);
+      ctx.fillStyle = '#f59e0b'; // Amber color
       const sx = a.x * this.zoom - this.camX;
       const sy = a.y * this.zoom - this.camY;
       if (sx < -4 || sx > cw + 4 || sy < -4 || sy > ch + 4) continue; // skip off‑screen
