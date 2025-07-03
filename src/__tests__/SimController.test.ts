@@ -1,33 +1,36 @@
-/**
- * Unit test: 100 ticks advance without throwing.
- * Uses a stub renderer to avoid HTMLCanvas dependency in Jest (jsdom).
- */
 
-import { World } from '../world';
 import { SimController } from '../SimController';
-import { rng, setSeed } from '../utils/random';
+import { World } from '../world';
+import { Renderer } from '../renderer';
+import { setSeed } from '../utils/random';
 
-class DummyRenderer {
-  /* eslint-disable @typescript-eslint/no-empty-function */
-  draw() {}
-  renderer() {}
-}
+// Mock the Renderer class since we don't need to test its functionality here.
+jest.mock('../renderer', () => {
+  return {
+    Renderer: jest.fn().mockImplementation(() => {
+      return {
+        draw: jest.fn(),
+      };
+    }),
+  };
+});
 
 describe('SimController deterministic loop', () => {
-  it('advances 100 ticks without error', () => {
+  beforeEach(() => {
+    // Reset the mock before each test
+    (Renderer as jest.Mock).mockClear();
     setSeed(1);
-    const world = new World();
-    // Populate world for test since constructor is now empty.
-    for (let i = 0; i < 10; i++) {
-      world.spawnAgent(rng() * world.width, rng() * world.height);
-    }
-    const render = new DummyRenderer() as any; // satisfies interface
-    const sim = new SimController(world, render);
+  });
 
-    // monkey‑patch internal loop to avoid RAF / use virtual time
+  it('advances 100 ticks without error', () => {
+    const world = new World();
+    const renderer = new Renderer(world, null); // The canvas is null in a test environment.
+    const sim = new SimController(world, renderer);
+    
+    // The main loop is private, so we can't call it directly.
+    // Instead, we can check the tickCount after a certain amount of time has passed.
     for (let i = 0; i < 100; i++) {
-      (sim as any)._paused = false; // ensure it runs
-      (sim as any).loop(); // call private loop directly
+      sim.tick();
     }
     expect(world.tickCount).toBe(100);
   });

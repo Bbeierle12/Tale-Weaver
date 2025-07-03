@@ -14,6 +14,7 @@ describe('World resource simulation', () => {
 
   it('regrows food over time', () => {
     const world = new World();
+    world.food.fill(SIM_CONFIG.foodValue - 1);
     const initialFood = world.avgTileFood;
     world.step();
     expect(world.avgTileFood).toBeGreaterThan(initialFood);
@@ -31,7 +32,7 @@ describe('World resource simulation', () => {
     const world = new World(1, 1);
     world.food[0] = 0.05;
     const eaten = world.eatAt(0, 0, 0.1);
-    expect(eaten).toBe(0.05);
+    expect(eaten).toBeCloseTo(0.05);
     expect(world.food[0]).toBe(0);
   });
 

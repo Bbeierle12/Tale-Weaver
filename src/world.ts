@@ -72,13 +72,17 @@ export class World {
   // ───────── main update
   public step (): void {
     this.tickCount++;
+    this.deathsTotal += this.deaths;
+    this.birthsTotal += this.births;
     this.births = 0;
     this.deaths = 0;
     this.energyHist.reset();
 
     // Food regrowth
     for (let i = 0; i < this.food.length; i++) {
-      this.food[i] = Math.min(SIM_CONFIG.foodValue, this.food[i] + SIM_CONFIG.growthRate)
+        if (this.food[i] < SIM_CONFIG.foodValue) {
+            this.food[i] = Math.min(SIM_CONFIG.foodValue, this.food[i] + SIM_CONFIG.growthRate)
+        }
     }
 
     // Tick agents
@@ -97,8 +101,6 @@ export class World {
       this.energyHist.add(a.energy);
     }
     this.agents = nextAgents;
-    this.deathsTotal += this.deaths;
-    this.birthsTotal += this.births;
 
     // Telemetry row
     this.pushSeriesRow();

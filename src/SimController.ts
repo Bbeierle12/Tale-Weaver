@@ -51,6 +51,13 @@ export class SimController {
     }
   }
 
+  public tick(): void {
+    this.world.step();
+    if (this.renderer) {
+      this.renderer.draw();
+    }
+  }
+
   // ————————————————————————————————— private —————————————————————————————————
 
   private loop = () => {
@@ -59,8 +66,7 @@ export class SimController {
     const shouldUpdate = !this._paused || this._stepOnce;
     if (shouldUpdate) {
       this._stepOnce = false;
-      this.world.step(); // Use the new step function
-      this.renderer.draw();
+      this.tick();
     }
 
     this.animationFrameId = requestAnimationFrame(this.loop);

@@ -8,7 +8,7 @@ test('population grows and agents die from starvation over time', () => {
   
   // Spawn initial agents to kickstart the simulation, same as the UI.
   for (let i = 0; i < 50; i++) {
-    world.spawnAgent(rng() * world.width, rng() * world.height);
+    world.spawnAgent(rng() * world.width, rng() * world.height, 15);
   }
   
   // Run the simulation for enough ticks to observe the full life cycle.
