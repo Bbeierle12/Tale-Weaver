@@ -8,7 +8,18 @@ export class World {
   public dead = 0;
   public tick = 0;
 
-  public readonly growthRate: number = 0.15;  // food regrowth per second (per regrowth event)
+  // Data logging for AI analysis
+  public history: {
+    tick: number;
+    liveAgents: number;
+    deaths: number;
+    avgEnergy: number;
+    avgTileFood: number;
+    avgTileFoodSD: number;
+  }[] = [];
+  private deathsThisTick = 0;
+
+  public readonly growthRate: number = 0.15; // food regrowth per second (per regrowth event)
   private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
 
   private _totalFood: number = 0;
@@ -46,6 +57,7 @@ export class World {
   /** World update: regrow food and update all agents */
   public update(dt: number): void {
     this.tick++;
+    this.deathsThisTick = 0;
     this.regrow(dt);
 
     // Update all agents
@@ -59,7 +71,20 @@ export class World {
       if (this.agents[i].dead) {
         this.agents.splice(i, 1);
         this.dead++;
+        this.deathsThisTick++;
       }
+    }
+
+    // Record history for this tick
+    if (this.tick > 0) {
+      this.history.push({
+        tick: this.tick,
+        liveAgents: this.agents.length,
+        deaths: this.deathsThisTick,
+        avgEnergy: this.avgEnergy,
+        avgTileFood: this.avgTileFood,
+        avgTileFoodSD: this.avgTileFoodSD,
+      });
     }
   }
 
@@ -85,6 +110,21 @@ export class World {
   get avgTileFood(): number {
     if (this.width * this.height === 0) return 0;
     return this._totalFood / (this.width * this.height);
+  }
+
+  /** Standard deviation of food level across all tiles. */
+  get avgTileFoodSD(): number {
+    const numTiles = this.width * this.height;
+    if (numTiles === 0) return 0;
+    
+    const mean = this.avgTileFood;
+    let sumSqDiff = 0;
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        sumSqDiff += Math.pow(this.tiles[y][x] - mean, 2);
+      }
+    }
+    return Math.sqrt(sumSqDiff / numTiles);
   }
 
   /** Average energy of all alive agents (0 if no agents). */

@@ -11,6 +11,8 @@ import { AnalysisDialog } from './analysis-dialog';
 import { analyzeSimulationAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 
+const INITIAL_AGENT_COUNT = 300;
+const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
 
 export function SimulationClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -42,15 +44,14 @@ export function SimulationClient() {
     }
 
     const newWorld = new World();
-    const initialAgentCount = 300;
-    for (let i = 0; i < initialAgentCount; i++) {
+    for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
       newWorld.spawnAgent(
         Math.random() * newWorld.width,
         Math.random() * newWorld.height
       );
     }
     setWorld(newWorld);
-    setPeakAgentCount(initialAgentCount);
+    setPeakAgentCount(INITIAL_AGENT_COUNT);
     setAnalysisResult(null);
     setIsAnalyzing(false);
     setIsAnalysisDialogOpen(false);
@@ -102,9 +103,9 @@ export function SimulationClient() {
       const result = await analyzeSimulationAction({
         ticks: world.tick,
         peakAgentCount: peakAgentCount,
-        finalAgentCount: world.agents.length,
-        finalAvgEnergy: world.avgEnergy,
-        finalAvgTileFood: world.avgTileFood,
+        initialAgentCount: INITIAL_AGENT_COUNT,
+        initialFoodPerTile: INITIAL_FOOD_PER_TILE,
+        simulationHistory: world.history,
       });
       setAnalysisResult(result.analysis);
     } catch (error) {
