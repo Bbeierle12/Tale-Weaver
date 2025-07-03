@@ -41,7 +41,7 @@ The user provides the following simulation data. This is your only source of inf
 - World Size: 200x200
 - Ticks Ran: {{{ticks}}}
 - Food Energy Value: 10.0
-- Food Regrowth Rate: 0.15 / sec across 400 events/sec
+- Food Regrowth Rate: {{{regrowthRate}}} / sec across 400 events/sec
 
 **Full Simulation History (Tick, Population, Demographics, Metabolic Costs (basal, move), Agent Energy (avg, SD, min, max, histogram), Tile Food (avg, SD, min, max, Gini)):**
 \`\`\`json
@@ -57,7 +57,7 @@ The user provides the following simulation data. This is your only source of inf
     *   **Robustness**: Propose alternative hypotheses for the observed dynamics. Suggest a key parameter to test for sensitivity.
 3.  **Recommendations**: Provide concrete, actionable next steps for the researcher, tagged with priority [HIGH], [MED], [LOW]. These should cover simulation model tweaks, new instrumentation/data to collect, or validation experiments.
 
-=== Output Format (Strictly in this order) ===
+=== OutputFormat (Strictly in this order) ===
 Your final output must be a single markdown block.
 
 #### Executive Summary

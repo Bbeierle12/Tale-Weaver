@@ -31,14 +31,15 @@ export class World {
   private tileLog: TileEvent[] = new Array<TileEvent>(World.TILE_LOG_CAP);
   private tileLogPtr = 0;
 
-  public readonly growthRate: number = 0.15; // food regrowth per second (per regrowth event)
+  public readonly growthRate: number; // food regrowth per second (per regrowth event)
   private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
 
   private _totalFood: number = 0;
 
-  constructor(width = 200, height = 200) {
+  constructor(width = 200, height = 200, growthRate = 0.15) {
     this.width = width;
     this.height = height;
+    this.growthRate = growthRate;
     // Initialize tiles with a moderate food level
     this.tiles = Array.from({ length: height }, () =>
       Array.from({ length: width }, () => 0.5)

@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatView } from './chat-view';
 import { AnalysisDialog } from './analysis-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const INITIAL_AGENT_COUNT = 50;
 const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
@@ -42,6 +43,7 @@ export function SimulationClient() {
 
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
+  const [regrowthRate, setRegrowthRate] = useState(0.15);
   const [colorCounts, setColorCounts] = useState(new Map<string, number>());
   const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(new Map());
   const [pendingNameRequests, setPendingNameRequests] = useState<Set<string>>(new Set());
@@ -50,7 +52,7 @@ export function SimulationClient() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
-  const resetSimulation = useCallback((seedToUse: number) => {
+  const resetSimulation = useCallback((seedToUse: number, regrowthRateToUse: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -64,7 +66,7 @@ export function SimulationClient() {
     setSeed(seedToUse);
     setSeedValue(seedToUse);
 
-    const newWorld = new World();
+    const newWorld = new World(undefined, undefined, regrowthRateToUse);
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
       newWorld.spawnAgent(
         rng() * newWorld.width,
@@ -115,7 +117,7 @@ export function SimulationClient() {
       setColorCounts(newColorCounts);
 
     }, 400);
-  }, []);
+  }, [toast]);
 
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
@@ -229,6 +231,7 @@ export function SimulationClient() {
       peakAgentCount,
       initialAgentCount: INITIAL_AGENT_COUNT,
       initialFoodPerTile: INITIAL_FOOD_PER_TILE,
+      regrowthRate: world.growthRate,
       simulationHistory: world.history,
     };
 
@@ -238,7 +241,7 @@ export function SimulationClient() {
   }, [world, isPaused, peakAgentCount, toast]);
 
   useEffect(() => {
-    resetSimulation(Date.now() % 1_000_000);
+    resetSimulation(Date.now() % 1_000_000, 0.15);
 
     return () => {
       if (controllerRef.current) {
@@ -327,6 +330,7 @@ export function SimulationClient() {
               peakAgentCount: peakAgentCount,
               initialAgentCount: INITIAL_AGENT_COUNT,
               initialFoodPerTile: INITIAL_FOOD_PER_TILE,
+              regrowthRate: world?.growthRate ?? regrowthRate,
               simulationHistory: world?.history ?? [],
             }}
           />
@@ -348,7 +352,7 @@ export function SimulationClient() {
           <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward">
             <StepForward className="h-4 w-4" />
           </Button>
-          <Button onClick={() => resetSimulation(seed)} variant="outline">
+          <Button onClick={() => resetSimulation(seed, regrowthRate)} variant="outline">
             <RotateCcw className="mr-2 h-4 w-4" />
             Reset
           </Button>
@@ -362,6 +366,19 @@ export function SimulationClient() {
               className="w-24 bg-gray-800 border-gray-700"
               disabled={!isPaused}
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="regrowth-rate-select" className="text-white font-mono text-sm">Regrowth</Label>
+            <Select value={String(regrowthRate)} onValueChange={(v) => setRegrowthRate(Number(v))} disabled={!isPaused}>
+              <SelectTrigger id="regrowth-rate-select" className="w-24 bg-gray-800 border-gray-700">
+                <SelectValue placeholder="Rate" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0.05">0.05</SelectItem>
+                <SelectItem value="0.10">0.10</SelectItem>
+                <SelectItem value="0.15">0.15</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
