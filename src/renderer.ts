@@ -60,30 +60,6 @@ export class Renderer {
     this.camX = Math.max(0, Math.min(world.width  * this.zoom - cw, this.camX));
     this.camY = Math.max(0, Math.min(world.height * this.zoom - ch, this.camY));
 
-    // determine visible tiles
-    const x0 = (this.camX / this.zoom) | 0;
-    const y0 = (this.camY / this.zoom) | 0;
-    const cols = Math.ceil(cw / this.zoom) + 1;
-    const rows = Math.ceil(ch / this.zoom) + 1;
-
-    // draw terrain (food density)
-    for (let y = 0; y < rows; y++) {
-      const ty = y0 + y;
-      if (ty >= world.height) break;
-      for (let x = 0; x < cols; x++) {
-        const tx = x0 + x;
-        if (tx >= world.width) break;
-        const food = world.tiles[ty][tx];
-        if (food <= 0) continue;
-        ctx.fillStyle = `rgba(34,197,94,${food})`;
-        ctx.fillRect(
-          (tx * this.zoom) - this.camX,
-          (ty * this.zoom) - this.camY,
-          this.zoom, this.zoom
-        );
-      }
-    }
-
     // draw agents (simple circles)
     ctx.fillStyle = '#fbbf24';                    // amber‑400
     for (const a of world.agents) {
