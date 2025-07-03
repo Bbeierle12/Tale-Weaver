@@ -23,81 +23,38 @@ const prompt = ai.definePrompt({
   name: 'analyzeSimulationPrompt',
   input: {schema: SimulationAnalysisInputSchema},
   output: {schema: SimulationAnalysisOutputSchema},
-  prompt: `You are an expert ecologist and data analyst, providing a core-diagnostics checklist for an agent-based life simulation.
+  prompt: `You are an expert ecologist and data analyst, providing a concise analysis of an agent-based life simulation.
 
-Your analysis MUST address the following 12 points, using the provided data. Structure your response in markdown.
+Your analysis must be structured in markdown format as follows:
 
-**Simulation Parameters & Initial Conditions:**
-- **Initial Agent Population:** {{{initialAgentCount}}}
-- **Initial Food Per Tile:** {{{initialFoodPerTile}}}
-- **World Size:** 200x200
-- **Agent Parameters:**
-  - Move Speed: 1.0 units/sec
-  - Metabolic Cost: 1.0 energy/sec
-  - Food Consumption Amount: 0.05 per attempt
-  - Food Energy Value: 10.0 energy per unit of food
-- **Environment Parameters:**
-  - Food Regrowth Rate: 0.15 / sec
-  - Food Regrowth Events: 400 / sec
+### Summary of Findings
+Provide a concise summary paragraph (less than 150 words) of the simulation. State the primary observation (e.g., population collapse due to starvation) and highlight any key dynamics you observed from the data.
 
----
+### Key Observations
+- **Population Trend:** Describe the trend of the live agent population and deaths over time.
+- **Resource Trend:** Describe how the average food per tile evolved. Did the agents deplete the resources?
+- **Survival Factors:** Briefly comment on why some agents survived longer than others, considering the random-walk behavior.
 
-### Core Diagnostics Checklist
-
-**1. Hypothesis or Design Question:**
-What was this run testing? (Assume the goal was to observe population dynamics under starvation pressure with no reproduction.)
-
-**2. Parameter Set:**
-(Listed above)
-
-**3. Initial Conditions:**
-(Listed above)
-
-**4. Reproduction:**
-Did agents reproduce? (The current model has no reproduction, so state this clearly. Births will be 0).
-
-**5. Population and Energy Evolution:**
-Describe the evolution of the live population, deaths per tick, and mean agent energy over the simulation's {{{ticks}}} ticks. Use the historical data provided. What does the trend show?
-
-**6. Resource Evolution:**
-How did the average food per tile and its standard deviation evolve? Does this indicate resource depletion, stability, or something else?
-
-**7. Per-tick Energy Budget:**
-Analyze the energy budget. Was the total energy gained from food consumption enough to offset the total metabolic cost? (You will need to estimate this, as per-agent consumption is not in the data).
-
-**8. Spatial Correlation:**
-Given random walk, survival is likely tied to luck. Discuss if initial agent placement in relation to food would have mattered.
-
-**9. Density-Dependent Regulation:**
-With no reproduction, the key density-dependent factor is resource competition. How did the declining population density affect the per-capita resource availability?
-
-**10. Inequality:**
-Discuss the potential for inequality. Even with identical agents, would some be "luckier" by randomly finding more food patches? How would this create a Gini-like effect in energy distribution?
-
-**11. Parameter Sensitivity:**
-Theorize how sensitive the results might be to \`metabolicCost\` and \`growthRate\`. What would a small change in these parameters do to the survival curve?
-
-**12. Next Experiment:**
-Based on this run, what is a concrete next experiment? (e.g., adding reproduction, changing agent behavior, introducing vision).
-
----
-
-### Data Summary
-
-**Tick-level Data (Sample):**
+### Data Table: Simulation History (Sample)
 Provide a markdown table of the simulation history. Show the first 5 rows, a separator '...', and the last 5 rows if the history is longer than 10 rows. Columns: \`Tick, Live Agents, Deaths, Avg Energy, Avg Food, Avg Food SD\`.
 
-**Plot Descriptions:**
-1.  **Population over Time:** Describe the shape of the curve for live agents and deaths per tick over time.
-2.  **Resources over Time:** Describe the shape of the curve for average food per tile over time.
+### Suggested Next Experiment
+Based on this run, suggest a single, concrete next experiment (e.g., adding reproduction, giving agents vision).
 
 ---
 
-### Summary Paragraph (<150 words)
+#### Reference Data
 
-Provide a concise summary answering Question 1 and highlighting any surprising results from the analysis relative to that hypothesis.
+**Simulation Parameters:**
+- Initial Agent Population: {{{initialAgentCount}}}
+- Initial Food Per Tile: {{{initialFoodPerTile}}}
+- World Size: 200x200
+- Ticks: {{{ticks}}}
+- Agent Metabolic Cost: 1.0 energy/sec
+- Food Energy Value: 10.0
+- Food Regrowth Rate: 0.15 / sec across 400 events/sec
 
-**Simulation History Data:**
+**Full Simulation History:**
 \`\`\`json
 {{{json simulationHistory}}}
 \`\`\`
