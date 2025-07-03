@@ -14,8 +14,13 @@ interface ChatViewProps {
   isPaused: boolean;
 }
 
+const initialMessage: Message = {
+  role: 'model',
+  content: "Hi! I'm SIM-SAGE, your personal analyst powered by Gemini. Pause the simulation and I can answer questions about what's happening on the Game Board."
+};
+
 export function ChatView({ simulationData, isPaused }: ChatViewProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -31,9 +36,12 @@ export function ChatView({ simulationData, isPaused }: ChatViewProps) {
   // Clear chat when a new simulation is started (tick reset to 0)
   useEffect(() => {
     if (simulationData.ticks === 0) {
-      setMessages([]);
+      // Check if the chat is already in its initial state to prevent infinite re-renders.
+      if (messages.length !== 1 || messages[0].content !== initialMessage.content) {
+        setMessages([initialMessage]);
+      }
     }
-  }, [simulationData.ticks]);
+  }, [simulationData.ticks, messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,12 +78,6 @@ export function ChatView({ simulationData, isPaused }: ChatViewProps) {
     <div className="flex flex-col h-full">
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center text-sm text-gray-400">
-              <p>Chat with SIM-SAGE about the simulation.</p>
-              <p className="text-xs">Pause the simulation to ask questions.</p>
-            </div>
-          )}
           {messages.map((msg, index) => (
             <div
               key={index}
