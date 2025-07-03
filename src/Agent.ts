@@ -107,7 +107,11 @@ export class Agent {
     else if (this.y >= world.height) this.y -= world.height;
 
     // Metabolism
-    this.energy -= this.metabolicCost * dt;
+    const basalCost = this.metabolicCost * dt;
+    // Movement cost is proportional to the square of speed.
+    // The factor is tuned to make it a meaningful, but not overwhelming, energy sink.
+    const moveCost = (this.moveSpeed * this.moveSpeed * 0.005) * dt;
+    this.energy -= (basalCost + moveCost);
 
     // Death by starvation
     if (this.energy <= this.deathThreshold) {

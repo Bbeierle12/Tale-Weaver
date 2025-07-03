@@ -103,17 +103,40 @@ export class World {
 
     // Record history for this tick
     if (this.tick > 0) {
-      this.logTickStats();
+      this.logTickStats(dt);
     }
   }
 
   /** Calculates all stats for the current tick and logs them to history. */
-  private logTickStats(): void {
+  private logTickStats(dt: number): void {
+    const hasAgents = this.agents.length > 0;
     // Agent stats
     const energyStats = new RunningStats();
+    let totalBasalCost = 0;
+    let totalMoveCost = 0;
     for (const agent of this.agents) {
       energyStats.push(agent.energy);
+      totalBasalCost += agent.metabolicCost * dt;
+      totalMoveCost += (agent.moveSpeed * agent.moveSpeed * 0.005) * dt;
     }
+
+    // Energy Histogram (every 100 ticks)
+    let energyHistogram: number[] | undefined = undefined;
+    if (hasAgents && this.tick % 100 === 0) {
+      const min = energyStats.min;
+      const max = energyStats.max;
+      const range = max - min;
+      const binSize = range > 0 ? range / 10 : 1;
+      energyHistogram = new Array(10).fill(0);
+
+      for (const agent of this.agents) {
+        let binIndex = range > 0 ? Math.floor((agent.energy - min) / binSize) : 0;
+        if (binIndex >= 10) binIndex = 9; // Clamp to last bin
+        if (binIndex < 0) binIndex = 0; // Clamp to first bin
+        energyHistogram[binIndex]++;
+      }
+    }
+
 
     // World food stats
     const tileFoodStats = new RunningStats();
@@ -140,17 +163,19 @@ export class World {
     }
     
     const foodGini = calculateGini(foodSample);
-    const hasAgents = energyStats.count > 0;
 
     this.history.push({
       tick: this.tick,
       population: this.agents.length,
       births: this.births,
       deaths: this.deaths,
+      totalBasalCost,
+      totalMoveCost,
       avgEnergy: hasAgents ? energyStats.avg : 0,
       energySD: hasAgents ? energyStats.sd : 0,
       minEnergy: hasAgents ? energyStats.min : 0,
       maxEnergy: hasAgents ? energyStats.max : 0,
+      energyHistogram,
       avgTileFood: tileFoodStats.avg,
       avgTileFoodSD: tileFoodStats.sd,
       minTileFood: tileFoodStats.min,

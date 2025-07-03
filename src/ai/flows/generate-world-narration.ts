@@ -40,11 +40,10 @@ The user provides the following simulation data. This is your only source of inf
 - Initial Food Per Tile: {{{initialFoodPerTile}}}
 - World Size: 200x200
 - Ticks Ran: {{{ticks}}}
-- Agent Metabolic Cost: 1.0 energy/sec
 - Food Energy Value: 10.0
 - Food Regrowth Rate: 0.15 / sec across 400 events/sec
 
-**Full Simulation History (Tick, Population, Demographics, Agent Energy (avg, SD, min, max), Tile Food (avg, SD, min, max, Gini)):**
+**Full Simulation History (Tick, Population, Demographics, Metabolic Costs (basal, move), Agent Energy (avg, SD, min, max, histogram), Tile Food (avg, SD, min, max, Gini)):**
 \`\`\`json
 {{{json simulationHistory}}}
 \`\`\`
@@ -52,7 +51,7 @@ The user provides the following simulation data. This is your only source of inf
 === Task ===
 1.  **Key Facts & Gaps**: Pull all parameters, key outcomes (e.g., population crash/stability, resource depletion), and any statistical anomalies. Note if critical data for a full analysis is missing from the provided dump.
 2.  **Analysis**:
-    *   **Stats**: Describe trendlines, variance, and any obvious breakpoints in the data. Look for correlations between agent energy and food availability. Use the Gini coefficient to discuss resource inequality.
+    *   **Stats**: Describe trendlines, variance, and any obvious breakpoints in the data. Analyze the metabolic debit ledger (totalBasalCost vs. totalMoveCost) to understand the agent's energy economy. Is movement a significant cost? Look for correlations between agent energy and food availability. Use the Gini coefficient and the periodic energy histograms to discuss resource and energy inequality.
     *   **Mechanisms**: Analyze the causal chains. Does the system resemble classic ecological models (e.g., Lotka-Volterra, r/K selection)? Why or why not?
     *   **Forecast**: Briefly project what might happen if the simulation ran 5x longer. Include major caveats.
     *   **Robustness**: Propose alternative hypotheses for the observed dynamics. Suggest a key parameter to test for sensitivity.
