@@ -88,20 +88,22 @@ export class World {
 
     // Tick agents
     const nextAgents: Agent[] = [];
-    for (const a of this.agents) {
-      const child = a.tick(this); // Agent lives, dies, or gives birth
+    for (const agent of this.agents) {
+      const result = agent.tick(this);
       
-      // If a child was born, add it to the list
-      if (child) {
-        nextAgents.push(child);
-        this.births++;
+      if (result) {
+        // Agent survived. Was it a birth?
+        if (result !== agent) {
+          // Yes, a new child was born.
+          this.births++;
+          nextAgents.push(result); // Add the child
+        }
+        // In all survival cases (birth or not), keep the original agent.
+        nextAgents.push(agent);
       }
-      
-      // If the original agent survived this tick, add it to the list
-      if (a.energy >= SIM_CONFIG.deathThreshold) {
-        nextAgents.push(a);
-      }
+      // If result is null, the agent died and is not added to nextAgents.
     }
+
     this.agents = nextAgents;
     this.deathsTotal += this.deaths;
     this.birthsTotal += this.births;

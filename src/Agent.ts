@@ -86,7 +86,8 @@ export class Agent {
       return null;
     }
 
-    return null // Indicates survival without birth
+    // Agent survives
+    return this;
   }
 
   private move (dir: number, world: World): void {
