@@ -1,1 +1,5 @@
-// Flows will be imported for their side effects in this file.
+import { config } from 'dotenv';
+config();
+
+import '@/ai/flows/generate-world-narration.ts';
+import '@/ai/flows/adapt-narration-to-game-state.ts';
