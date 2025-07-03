@@ -142,10 +142,6 @@ export function SimulationClient() {
     resetSimulation(Date.now() % 1_000_000);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        handleTogglePause();
-      }
       if (e.code === 'KeyN') {
         if (controllerRef.current?.paused) {
           controllerRef.current?.step();
@@ -161,7 +157,7 @@ export function SimulationClient() {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSimulation, handleTogglePause]);
+  }, [resetSimulation]);
 
   useEffect(() => {
     if (!colorCounts) return;
