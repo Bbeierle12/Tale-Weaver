@@ -26,12 +26,13 @@ export function mapLinear (
   return min + gene * (max - min)
 }
 
-/** Mutate genome in‑place with independent probability _p_ per locus. */
-export function mutateGenome (
-  genome: Float32Array,
-  p = 0.01
-): void {
-  for (let i = 0; i < genome.length; i++) {
-    if (rng() < p) genome[i] = rng()
+/** Returns a new, mutated genome with independent probability _p_ per locus. */
+export function mutateGenome(src: Float32Array, p = 0.01): Float32Array {
+  const g = new Float32Array(src);
+  for (let i = 0; i < g.length; i++) {
+    if (rng() < p) {
+      g[i] = rng();
+    }
   }
+  return g;
 }

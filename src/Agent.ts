@@ -18,10 +18,10 @@ export class Agent {
   public metabolicCost!: number;
   public foodConsumptionAmount!: number;
   public reproductionThreshold!: number;
-  public offspringEnergyRatio!: number;
   public color!: string;
-  public sensoryRadius!: number;
+  public sensoryRadius!: number; // User called this vision
   public turningSpeed!: number;
+  private readonly deathThreshold = 1e-3;
 
   constructor(x = 0, y = 0, energy = 10, genome?: Float32Array) {
     this.id = nextAgentId++;
@@ -35,14 +35,14 @@ export class Agent {
 
   /** Decode genome into agent properties. */
   private applyGenome(): void {
-    // Basic traits
-    this.moveSpeed = mapLinear(this.genome[0], 0.5, 1.5);
-    this.metabolicCost = mapLinear(this.genome[1], 0.5, 2.0);
-    this.foodConsumptionAmount = mapLinear(this.genome[2], 0.02, 0.1);
-
-    // Reproduction traits
-    this.reproductionThreshold = mapLinear(this.genome[3], 20, 50);
-    this.offspringEnergyRatio = mapLinear(this.genome[4], 0.3, 0.7);
+    // Trait mapping based on user specification
+    this.moveSpeed = mapLinear(this.genome[0], 2, 6);             // Gene 0: speed
+    this.sensoryRadius = mapLinear(this.genome[1], 10, 20);       // Gene 1: vision
+    this.metabolicCost = mapLinear(this.genome[2], 0.05, 0.2);    // Gene 2: metabolicCost
+    this.reproductionThreshold = mapLinear(this.genome[3], 15, 30); // Gene 3: reproThreshold
+    
+    // Other traits
+    this.foodConsumptionAmount = mapLinear(this.genome[4], 0.02, 0.1);
 
     // Aesthetics
     const r = Math.floor(mapLinear(this.genome[5], 100, 255));
@@ -51,8 +51,7 @@ export class Agent {
     this.color = `rgb(${r},${g},${b})`;
 
     // Foraging traits
-    this.sensoryRadius = mapLinear(this.genome[8], 2, 10);
-    this.turningSpeed = mapLinear(this.genome[9], Math.PI * 0.25, Math.PI * 2); // 45 to 360 deg/sec
+    this.turningSpeed = mapLinear(this.genome[9], Math.PI * 0.25, Math.PI * 2);
   }
 
   /** Update agent: move, lose energy, consume, reproduce, possibly die. Returns a new agent if one was born. */
@@ -110,6 +109,13 @@ export class Agent {
     // Metabolism
     this.energy -= this.metabolicCost * dt;
 
+    // Death by starvation
+    if (this.energy <= this.deathThreshold) {
+      this.dead = true;
+      this.energy = 0;
+      return null;
+    }
+
     // Consumption
     const tx = this.x | 0;
     const ty = this.y | 0;
@@ -120,23 +126,18 @@ export class Agent {
     }
 
     // Reproduction
-    let newborn: Agent | null = null;
     if (this.energy >= this.reproductionThreshold) {
-      const offspringEnergy = this.energy * this.offspringEnergyRatio;
-      this.energy -= offspringEnergy;
-
-      const childGenome = this.genome.slice(); // inherit
-      mutateGenome(childGenome); // mutate
+      this.energy -= 10; // Fixed cost of birth
+      const childGenome = mutateGenome(this.genome); // Create mutated copy
       
-      newborn = new Agent(this.x, this.y, offspringEnergy, childGenome);
+      // Spawn child nearby
+      const jitterX = this.x + (rng() - 0.5);
+      const jitterY = this.y + (rng() - 0.5);
+      
+      // Newborn starts with the energy it cost the parent
+      return new Agent(jitterX, jitterY, 10, childGenome);
     }
 
-    // Death
-    if (this.energy <= 0) {
-      this.dead = true;
-      this.energy = 0;
-    }
-
-    return newborn;
+    return null;
   }
 }
