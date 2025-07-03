@@ -1,129 +1,53 @@
+// --- src/Agent.ts ---
+import { World } from './world';
 
-/* eslint-disable no-loss-of-precision */
-import { randomGenome, mapLinear, mutateGenome } from './utils/genetics'
-import type { World } from './world'
-
-const FOOD_ENERGY_VALUE = 10;
-const CONSUMPTION_AMOUNT = 0.05; // per second
-
-/**
- * Agent (v0.2) — now with a digital genome.
- * Each instance owns a Float32Array<16> that linearly encodes key traits.
- */
 export class Agent {
-  x: number
-  y: number
-  energy = 10
-  dir = Math.random() * Math.PI * 2; // facing (rad)
-  readonly genome: Float32Array
-  private readonly world: World
+  public x: number;
+  public y: number;
+  public energy: number;
+  public dead: boolean = false;
+  // Agent behavior parameters
+  private static readonly MOVE_SPEED: number = 1.0;        // movement speed (units per second)
+  private static readonly METABOLIC_COST: number = 1.0;    // energy drained per second
+  private static readonly FOOD_CONSUMPTION_AMOUNT: number = 0.05;
+  private static readonly FOOD_ENERGY_VALUE: number = 10.0;
 
-  constructor (
-    x: number,
-    y: number,
-    genome: Float32Array | undefined,
-    world: World
-  ) {
-    this.x = x
-    this.y = y
-    this.genome = genome ?? randomGenome()
-    this.world = world
+  constructor(x = 0, y = 0, energy = 10) {
+    this.x = x;
+    this.y = y;
+    this.energy = energy;
   }
 
-  // ---------- GENOTYPE → PHENOTYPE GETTERS ----------
+  /** Update agent: move randomly, lose energy, consume food, possibly die. */
+  update(dt: number, world: World): void {
+    if (this.dead) return;  // skip update if already dead
 
-  /** Tiles / sec ∈ [2, 6] */
-  get speed (): number {
-    return mapLinear(this.genome[0], 2, 6)
-  }
+    // Random-walk movement: small step in a random direction
+    const angle = Math.random() * 2 * Math.PI;
+    const step = Agent.MOVE_SPEED * dt;
+    this.x += Math.cos(angle) * step;
+    this.y += Math.sin(angle) * step;
+    // Wrap around world boundaries
+    if (this.x < 0) this.x += world.width;
+    else if (this.x >= world.width) this.x -= world.width;
+    if (this.y < 0) this.y += world.height;
+    else if (this.y >= world.height) this.y -= world.height;
 
-  /** Vision radius ∈ [10, 20] tiles */
-  get vision (): number {
-    return mapLinear(this.genome[1], 10, 20)
-  }
+    // Metabolic energy cost for existing (starvation pressure)
+    this.energy -= Agent.METABOLIC_COST * dt;
 
-  /** Passive metabolic cost (energy / sec) ∈ [0.05, 0.2] */
-  get metabolicCost (): number {
-    return mapLinear(this.genome[2], 0.05, 0.2)
-  }
-
-  /** Energy level required to reproduce ∈ [15, 30] */
-  get reproductionThreshold (): number {
-    return mapLinear(this.genome[3], 15, 30)
-  }
-
-  // ---------- UPDATE LOOP ----------
-
-  update (dt: number): void {
-    // 1. Find best food in vision
-    let bestX = -1, bestY = -1, bestFood = 0;
-    const r = this.vision | 0;
-    const searchRadiusSq = r * r;
-
-    for (let dy = -r; dy <= r; dy++) {
-        for (let dx = -r; dx <= r; dx++) {
-            if (dx * dx + dy * dy > searchRadiusSq) continue;
-            const tx = (this.x + dx) | 0;
-            const ty = (this.y + dy) | 0;
-            if (tx < 0 || tx >= this.world.width || ty < 0 || ty >= this.world.height) continue;
-            
-            const food = this.world.tiles[ty][tx];
-            if (food > bestFood) {
-                bestFood = food;
-                bestX = tx;
-                bestY = ty;
-            }
-        }
-    }
-    
-    // 2. Move
-    if (bestFood > 0) {
-        this.dir = Math.atan2(bestY - this.y, bestX - this.x);
-    } else {
-        // random walk if no food found
-        this.dir += (Math.random() - 0.5) * 0.5;
-    }
-
-    this.x += Math.cos(this.dir) * this.speed * dt;
-    this.y += Math.sin(this.dir) * this.speed * dt;
-    this.world.clampPosition(this);
-    this.energy -= this.speed * 0.01 * dt; // Movement energy cost
-
-    // 3. Consume food
-    const tx = this.x | 0;
+    // Consume food from current tile to regain energy
+    const tx = this.x | 0;   // fast floor
     const ty = this.y | 0;
-    const eaten = this.world.consumeFood(tx, ty, CONSUMPTION_AMOUNT * dt);
-    this.energy += eaten * FOOD_ENERGY_VALUE;
+    const eaten = world.consumeFood(tx, ty, Agent.FOOD_CONSUMPTION_AMOUNT);
+    if (eaten > 0) {
+      this.energy += eaten * Agent.FOOD_ENERGY_VALUE;
+    }
 
-    // 4. Metabolic drain
-    this.energy -= this.metabolicCost * dt
-    if (this.energy <= 0) this.world.kill(this)
-
-    // 5. Reproduction check
-    this.reproduce()
-  }
-
-  // ---------- ASEXUAL REPRODUCTION ----------
-
-  reproduce (): void {
-    if (this.energy < this.reproductionThreshold) return
-
-    // Parent energy cost
-    this.energy -= 10
-
-    // Clone & mutate genome
-    const childGenome = new Float32Array(this.genome) // copy
-    mutateGenome(childGenome, 0.01)
-
-    // Jittered position (±1 tile)
-    const jitterX = (Math.random() * 2 - 1)
-    const jitterY = (Math.random() * 2 - 1)
-
-    const child = this.world.spawnAgent(
-      this.x + jitterX,
-      this.y + jitterY,
-      childGenome
-    )
-    child.energy = 10
+    // Check for death by starvation
+    if (this.energy <= 0) {
+      this.dead = true;
+      this.energy = 0;
+    }
   }
 }

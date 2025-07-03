@@ -1,4 +1,3 @@
-
 import { Agent } from './Agent';
 
 export class World {
@@ -26,25 +25,11 @@ export class World {
 
   public spawnAgent(
     x: number,
-    y: number,
-    genome?: Float32Array
+    y: number
   ): Agent {
-    const agent = new Agent(x, y, genome, this);
+    const agent = new Agent(x, y);
     this.agents.push(agent);
     return agent;
-  }
-
-  public clampPosition(a: Agent): void {
-    a.x = Math.max(0, Math.min(this.width - 1, a.x));
-    a.y = Math.max(0, Math.min(this.height - 1, a.y));
-  }
-
-  public kill(a: Agent): void {
-    const idx = this.agents.indexOf(a);
-    if (idx >= 0) {
-      this.agents.splice(idx, 1);
-      this.dead++;
-    }
   }
 
   /** Consume food from the specified tile. Returns the amount of food actually eaten. */
@@ -63,10 +48,17 @@ export class World {
     this.tick++;
     this.regrow(dt);
 
-    const agentsToUpdate = [...this.agents];
-    for (const a of agentsToUpdate) {
-      if (this.agents.includes(a)) {
-        a.update(dt);
+    // Update all agents
+    for (const a of this.agents) {
+      a.update(dt, this);
+    }
+    
+    // Cull the dead
+    let i = this.agents.length;
+    while(i--) {
+      if (this.agents[i].dead) {
+        this.agents.splice(i, 1);
+        this.dead++;
       }
     }
   }
