@@ -369,7 +369,7 @@ export function SimulationClient() {
           </div>
           <div className="flex items-center gap-2">
             <Label htmlFor="regrowth-rate-select" className="text-white font-mono text-sm">Regrowth</Label>
-            <Select value={String(regrowthRate)} onValueChange={(v) => setRegrowthRate(Number(v))} disabled={!isPaused}>
+            <Select value={regrowthRate.toFixed(2)} onValueChange={(v) => setRegrowthRate(Number(v))} disabled={!isPaused}>
               <SelectTrigger id="regrowth-rate-select" className="w-24 bg-gray-800 border-gray-700">
                 <SelectValue placeholder="Rate" />
               </SelectTrigger>
