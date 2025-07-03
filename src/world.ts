@@ -81,11 +81,13 @@ export class World {
 
   /** Calculates all stats for the current tick and logs them to history. */
   private logTickStats(): void {
+    // Agent stats
     const energyStats = new RunningStats();
     for (const agent of this.agents) {
       energyStats.push(agent.energy);
     }
 
+    // World food stats
     const tileFoodStats = new RunningStats();
     // For Gini, use reservoir sampling for performance on large worlds.
     const foodSample: number[] = [];
@@ -110,17 +112,18 @@ export class World {
     }
     
     const foodGini = calculateGini(foodSample);
+    const hasAgents = energyStats.count > 0;
 
     this.history.push({
       tick: this.tick,
       liveAgents: this.agents.length,
       births: this.birthsThisTick,
       deaths: this.deathsThisTick,
-      avgEnergy: energyStats.count > 0 ? energyStats.avg : 0,
-      energySD: energyStats.count > 0 ? energyStats.sd : 0,
-      minEnergy: energyStats.count > 0 ? energyStats.min : 0,
-      maxEnergy: energyStats.count > 0 ? energyStats.max : 0,
-      avgTileFood: this.avgTileFood,
+      avgEnergy: hasAgents ? energyStats.avg : 0,
+      energySD: hasAgents ? energyStats.sd : 0,
+      minEnergy: hasAgents ? energyStats.min : 0,
+      maxEnergy: hasAgents ? energyStats.max : 0,
+      avgTileFood: tileFoodStats.avg,
       avgTileFoodSD: tileFoodStats.sd,
       minTileFood: tileFoodStats.min,
       maxTileFood: tileFoodStats.max,
