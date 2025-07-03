@@ -5,35 +5,6 @@
 
 import { World } from '../world';
 
-// Dummy test functions to allow the file to be parsed without a test framework.
-function describe(name: string, fn: () => void) {
-  fn();
-}
-function it(name: string, fn: () => void) {
-  fn();
-}
-function expect(actual: any) {
-  const an = (val: any) => ({
-      toBe: (expected: any) => {
-        if (val !== expected) {
-            console.assert(false, `Assertion failed: Expected ${val} to be ${expected}`);
-        }
-      },
-      toBeGreaterThan: (expected: any) => {
-        if (val <= expected) {
-            console.assert(false, `Assertion failed: Expected ${val} to be > ${expected}`);
-        }
-      },
-      toBeCloseTo: (expected: any, precision = 2) => {
-        const pass = Math.abs(expected - val) < (Math.pow(10, -precision) / 2);
-        if (!pass) {
-            console.assert(false, `Assertion failed: Expected ${val} to be close to ${expected}`);
-        }
-      }
-  });
-  return an(actual);
-}
-
 describe('World resource simulation', () => {
 
   it('regrows food over time', () => {

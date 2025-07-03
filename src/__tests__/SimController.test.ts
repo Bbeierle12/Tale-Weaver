@@ -6,36 +6,6 @@
 import { World } from '../world';
 import { SimController } from '../SimController';
 
-// Dummy test functions to allow the file to be parsed without a test framework.
-function describe(name: string, fn: () => void) {
-  fn();
-}
-function it(name: string, fn: () => void) {
-  fn();
-}
-function expect(actual: any) {
-  return {
-    toBe: (expected: any) => {
-      if (actual !== expected) {
-        console.assert(
-          false,
-          `Assertion failed: Expected ${actual} to be ${expected}`
-        );
-      }
-    },
-    toBeGreaterThanOrEqual: (expected: any) => {
-      if (actual < expected) {
-        console.assert(false, `Assertion failed: Expected ${actual} to be >= ${expected}`);
-      }
-    },
-    toBeLessThanOrEqual: (expected: any) => {
-      if (actual > expected) {
-        console.assert(false, `Assertion failed: Expected ${actual} to be <= ${expected}`);
-      }
-    },
-  };
-}
-
 class DummyRenderer {
   /* eslint-disable @typescript-eslint/no-empty-function */
   draw() {}
