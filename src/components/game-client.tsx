@@ -1,15 +1,13 @@
 'use client';
 
+import { runSimulationStepAction } from '@/app/actions';
 import type { EcosystemState } from '@/ai/schemas';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { INITIAL_NARRATION, INITIAL_STATE } from '@/constants';
-import { Pause, Play, RotateCw, StepForward } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
-import { Renderer } from '../renderer';
-import { SimController } from '../SimController';
-import { World } from '../world';
+import { Play, RotateCw, Square } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Hud } from './hud';
 import { Narrator } from './narrator';
 
@@ -18,87 +16,75 @@ export function SimulationClient() {
     useState<EcosystemState>(INITIAL_STATE);
   const [narration, setNarration] = useState<string>(INITIAL_NARRATION);
   const [isLoading, setIsLoading] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isClient, setIsClient] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
 
-  // State for the simulation instances
-  const [controller, setController] = useState<SimController | null>(null);
-  const [worldInstance, setWorldInstance] = useState<World | null>(null);
-
+  const isMounted = useRef(true);
   useEffect(() => {
-    setIsClient(true);
-
-    const world = new World();
-    const renderer = new Renderer(
-      world,
-      setSimulationState,
-      setNarration,
-      setIsLoading
-    );
-    const simController = new SimController(world, renderer);
-
-    setWorldInstance(world);
-    setController(simController);
-
-    simController.start();
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
-  const handleTogglePause = useCallback(() => {
-    if (controller) {
-      controller.togglePause();
-      setIsPaused(controller.paused);
-    }
-  }, [controller]);
-
-  const handleStep = useCallback(() => {
-    controller?.step();
-  }, [controller]);
-
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'Space') {
-        event.preventDefault(); // Prevent page scroll
-        handleTogglePause();
-      } else if (event.code === 'KeyN') {
-        handleStep();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleTogglePause, handleStep]);
-
-  const handleReset = () => {
-    if (worldInstance) {
-      worldInstance.reset();
-      // Force an immediate UI update
-      setSimulationState({ ...worldInstance.getState() });
-      setNarration(worldInstance.getNarration());
-      setIsLoading(false);
-      // If it was paused, resume it on reset
-      if (controller?.paused) {
-        controller.togglePause();
-      }
-      setIsPaused(false);
+    if (!isRunning || isLoading) {
+      return;
     }
+
+    const step = async () => {
+      setIsLoading(true);
+      try {
+        const result = await runSimulationStepAction(simulationState);
+
+        if (result && isMounted.current) {
+          const nonGrassPopulations = Object.entries(
+            result.newState.populations
+          ).filter(([species]) => species !== 'Grass');
+          const allExtinct = nonGrassPopulations.every(
+            ([, count]) => count <= 0
+          );
+
+          setSimulationState(result.newState);
+          setNarration(result.narration);
+
+          if (allExtinct) {
+            setIsRunning(false);
+            setNarration(
+              currentNarration =>
+                currentNarration +
+                ' All animal life has perished. The simulation has ended.'
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error during simulation step:', error);
+        if (isMounted.current) setIsRunning(false); // Stop on error
+      } finally {
+        if (isMounted.current) setIsLoading(false);
+      }
+    };
+
+    // We use a timer to create a delay between steps, making the simulation watchable.
+    const timerId = setTimeout(step, 1500);
+
+    // Cleanup the timer if the component unmounts or dependencies change
+    return () => clearTimeout(timerId);
+  }, [isRunning, isLoading, simulationState]);
+
+  const handleStart = () => {
+    setIsRunning(true);
   };
 
-  if (!isClient) {
-    // Render a static version or skeleton on the server to avoid hydration errors
-    return (
-      <div className="relative min-h-screen w-full flex flex-col items-center p-4 sm:p-6 lg:p-8">
-        <div className="fixed top-4 right-4 z-10 h-16 w-80 rounded-lg bg-black/50 backdrop-blur-sm" />
-        <main className="flex flex-col lg:flex-row items-start justify-center gap-8 w-full flex-grow mt-12 lg:mt-0">
-          <div className="w-full lg:w-2/3 max-w-4xl min-h-[120px] italic text-center text-foreground/90 text-xl lg:text-2xl">
-            <p>"{INITIAL_NARRATION}"</p>
-          </div>
-          <div className="w-full lg:w-1/3 max-w-md h-96 bg-background/30 rounded-lg" />
-        </main>
-      </div>
-    );
-  }
+  const handleEnd = () => {
+    setIsRunning(false);
+  };
+
+  const handleReset = () => {
+    setIsRunning(false);
+    setIsLoading(false);
+    setSimulationState(INITIAL_STATE);
+    setNarration(INITIAL_NARRATION);
+  };
 
   return (
     <div className="relative min-h-screen w-full flex flex-col items-center p-4 sm:p-6 lg:p-8">
@@ -110,7 +96,7 @@ export function SimulationClient() {
 
       <main className="flex flex-col lg:flex-row items-start justify-center gap-8 w-full flex-grow mt-12 lg:mt-0">
         <div className="w-full lg:w-2/3 max-w-4xl min-h-[120px]">
-          <Narrator narration={narration} isLoading={isLoading} />
+          <Narrator narration={narration} isLoading={isLoading && isRunning} />
         </div>
 
         <Card className="w-full lg:w-1/3 max-w-md bg-background/30 border-primary/30 backdrop-blur-sm shadow-2xl shadow-primary/10">
@@ -122,30 +108,28 @@ export function SimulationClient() {
           <CardContent className="p-6 pt-0 flex flex-col gap-4">
             <div className="flex gap-4">
               <Button
-                onClick={handleTogglePause}
-                disabled={!controller}
+                onClick={handleStart}
+                disabled={isRunning || isLoading}
                 className="w-full"
               >
-                {isPaused ? (
-                  <Play className="mr-2 h-4 w-4" />
-                ) : (
-                  <Pause className="mr-2 h-4 w-4" />
-                )}
-                {isPaused ? 'Resume' : 'Pause'}
+                <Play />
+                Start
               </Button>
               <Button
-                onClick={handleStep}
-                disabled={!isPaused || isLoading}
+                onClick={handleEnd}
+                disabled={!isRunning || isLoading}
                 variant="outline"
+                className="w-full"
               >
-                <StepForward className="h-4 w-4" />
+                <Square />
+                End
               </Button>
               <Button
                 onClick={handleReset}
                 disabled={isLoading}
                 variant="outline"
               >
-                <RotateCw className="h-4 w-4" />
+                <RotateCw />
               </Button>
             </div>
 
