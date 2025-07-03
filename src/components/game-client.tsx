@@ -10,6 +10,15 @@ export function SimulationClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const controllerRef = useRef<SimController | null>(null);
   const [world, setWorld] = useState<World | null>(null);
+  // State for the HUD, updated periodically
+  const [hudData, setHudData] = useState({
+    tick: 0,
+    alive: 0,
+    dead: 0,
+    avgTileFood: 0,
+    avgEnergy: 0,
+  });
+
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,14 +59,26 @@ export function SimulationClient() {
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    // Interval to update HUD data
+    const hudInterval = setInterval(() => {
+      setHudData({
+        tick: newWorld.tick,
+        alive: newWorld.agents.length,
+        dead: newWorld.dead,
+        avgTileFood: newWorld.avgTileFood,
+        avgEnergy: newWorld.avgEnergy,
+      });
+    }, 400);
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      clearInterval(hudInterval);
     };
   }, []);
 
   return (
     <div className="relative h-screen w-full bg-gray-900">
-      {world && <Hud world={world} />}
+      {world && <Hud {...hudData} />}
       <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );
