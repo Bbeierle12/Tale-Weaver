@@ -1,9 +1,10 @@
 /**
- * @fileOverview This file contains the Zod schemas and TypeScript types for the simulation analysis.
+ * @fileOverview This file contains the Zod schemas and TypeScript types for AI-related flows.
  */
 
 import {z} from 'zod';
 
+// Schemas for Simulation Analysis
 export const TickStatsSchema = z.object({
   tick: z.number().describe('The simulation tick number.'),
   liveAgents: z.number().describe('The number of agents alive at this tick.'),
@@ -64,3 +65,15 @@ export const SimulationAnalysisOutputSchema = z.object({
 export type SimulationAnalysisOutput = z.infer<
   typeof SimulationAnalysisOutputSchema
 >;
+
+// Schemas for Species Name Generation
+export const SpeciesNameInputSchema = z.object({
+  color: z.string().describe('The RGB color of the species, e.g., "rgb(123, 45, 67)".'),
+});
+export type SpeciesNameInput = z.infer<typeof SpeciesNameInputSchema>;
+
+export const SpeciesNameOutputSchema = z.object({
+  genus: z.string().describe('The generated Genus name for the species.'),
+  species: z.string().describe('The generated species name (epithet).'),
+});
+export type SpeciesNameOutput = z.infer<typeof SpeciesNameOutputSchema>;

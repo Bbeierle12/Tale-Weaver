@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Pause, Play, RotateCcw, Square, Bot, Download } from 'lucide-react';
 import { AnalysisDialog } from './analysis-dialog';
-import { analyzeSimulationAction } from '@/app/actions';
+import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,11 @@ import { Label } from '@/components/ui/label';
 
 const INITIAL_AGENT_COUNT = 50;
 const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
+
+interface SpeciesName {
+  genus: string;
+  species: string;
+}
 
 export function SimulationClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +44,9 @@ export function SimulationClient() {
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
   const [colorCounts, setColorCounts] = useState(new Map<string, number>());
+  const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(new Map());
+  const [pendingNameRequests, setPendingNameRequests] = useState<Set<string>>(new Set());
+
 
   const resetSimulation = useCallback((seedToUse: number) => {
     const canvas = canvasRef.current;
@@ -64,6 +72,8 @@ export function SimulationClient() {
     setIsAnalyzing(false);
     setIsAnalysisDialogOpen(false);
     setColorCounts(new Map());
+    setSpeciesNames(new Map());
+    setPendingNameRequests(new Set());
     
     setHudData({
       tick: newWorld.tick,
@@ -186,25 +196,67 @@ export function SimulationClient() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetSimulation, handleTogglePause]);
 
+  useEffect(() => {
+    if (!colorCounts) return;
+  
+    const newColors = Array.from(colorCounts.keys());
+  
+    for (const color of newColors) {
+      if (!speciesNames.has(color) && !pendingNameRequests.has(color)) {
+        setPendingNameRequests(prev => new Set(prev).add(color));
+        
+        generateSpeciesNameAction({ color })
+          .then(name => {
+            if (name.genus && name.species) {
+              setSpeciesNames(prev => new Map(prev).set(color, name));
+            }
+          })
+          .catch(err => {
+            console.error(`Failed to generate name for color ${color}:`, err);
+          })
+          .finally(() => {
+            setPendingNameRequests(prev => {
+              const next = new Set(prev);
+              next.delete(color);
+              return next;
+            });
+          });
+      }
+    }
+  }, [colorCounts, speciesNames, pendingNameRequests]);
+
   return (
     <div className="relative h-screen w-full bg-gray-900">
       {world && <Hud {...hudData} />}
 
-      <div className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-3 rounded-lg max-h-80 w-64 overflow-y-auto font-mono text-sm text-white z-10">
-        <h3 className="font-bold mb-2 text-base">Species Colors</h3>
+      <div className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-3 rounded-lg max-h-[calc(100vh-10rem)] w-64 overflow-y-auto font-mono text-sm text-white z-10">
+        <h3 className="font-bold mb-2 text-base">Species on Board</h3>
         {colorCounts.size === 0 && <p className="text-xs text-gray-400">No agents yet.</p>}
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {Array.from(colorCounts.entries())
             .sort(([, a], [, b]) => b - a)
-            .map(([color, count]) => (
-              <li key={color} className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: color }} />
-                  <span className="flex-1 text-xs">{color}</span>
+            .map(([color, count]) => {
+              const speciesInfo = speciesNames.get(color);
+              return (
+              <li key={color} className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2 pt-1">
+                  <div className="w-4 h-4 shrink-0 rounded-full border border-white/20" style={{ backgroundColor: color }} />
+                  <div className="flex-1 text-xs">
+                    {speciesInfo ? (
+                      <>
+                        <span className="font-bold italic display-block">{speciesInfo.genus} {speciesInfo.species}</span>
+                        <span className="text-gray-400 block">{color}</span>
+                      </>
+                    ) : pendingNameRequests.has(color) ? (
+                      <span className="text-gray-400">naming...</span>
+                    ) : (
+                      <span>{color}</span>
+                    )}
+                  </div>
                 </div>
-                <span className="font-bold">{count}</span>
+                <span className="font-bold text-base">{count}</span>
               </li>
-            ))}
+            )})}
         </ul>
       </div>
 
