@@ -46,8 +46,8 @@ export class World {
     this._totalFood = 0.5 * width * height;
   }
 
-  public recordForage(tick: number, id: number, x: number, y: number, foodEaten: number) {
-    this.forageLog[this.foragePtr++] = { tick, id, x, y, foodEaten };
+  public recordForage(tick: number, agent: Agent, food: number) {
+    this.forageLog[this.foragePtr++] = { t: tick, i: agent.id, x: agent.x|0, y: agent.y|0, f: food };
     if (this.foragePtr === World.FORAGE_LOG_CAP) this.foragePtr = 0; // overwrite oldest
   }
 

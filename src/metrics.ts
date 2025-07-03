@@ -1,10 +1,16 @@
 // src/metrics.ts
+
+/**
+ * @fileoverview Data contracts for simulation telemetry.
+ * Compact property names are used for memory efficiency in high-frequency logs.
+ */
+
 export interface ForageSample {
-  tick: number;
-  id: number;
+  t: number;      // tick
+  i: number;      // agent id
   x: number;
   y: number;
-  foodEaten: number;
+  f: number;      // foodEaten
 }
 
 export interface AgentSnapshot {

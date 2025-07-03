@@ -174,8 +174,8 @@ export function SimulationClient() {
       return;
     }
 
-    const header = 'tick,id,x,y,foodEaten\n';
-    const csv = world.getForageLog().map(s => `${s.tick},${s.id},${s.x},${s.y},${s.foodEaten}`).join('\n');
+    const header = 't,i,x,y,f\n';
+    const csv = world.getForageLog().map(s => `${s.t},${s.i},${s.x},${s.y},${s.f.toFixed(3)}`).join('\n');
     const blob = new Blob([header + csv], {type: 'text/csv'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
