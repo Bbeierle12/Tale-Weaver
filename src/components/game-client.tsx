@@ -176,17 +176,7 @@ export function SimulationClient() {
     // and provide a different simulation on each load.
     resetSimulation(Date.now() % 1_000_000);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'KeyN') {
-        if (controllerRef.current?.paused) {
-          controllerRef.current?.step();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
       if (hudIntervalRef.current) {
         clearInterval(hudIntervalRef.current);
       }
@@ -288,7 +278,7 @@ export function SimulationClient() {
             )}
             {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
           </Button>
-          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward (N)">
+          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward">
             <StepForward className="h-4 w-4" />
           </Button>
           <Button onClick={() => resetSimulation(seed)} variant="outline">
