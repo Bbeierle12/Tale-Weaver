@@ -29,11 +29,11 @@ export class RunningStats {
   /** The running sample standard deviation. */
   get sd()    { return this.n > 1 ? Math.sqrt(this.M2 / (this.n - 1)) : 0; }
 
-  /** The minimum value seen so far. */
-  get min()   { return this._min; }
+  /** The minimum value seen so far. Returns 0 if no data has been pushed. */
+  get min()   { return this.n > 0 ? this._min : 0; }
 
-  /** The maximum value seen so far. */
-  get max()   { return this._max; }
+  /** The maximum value seen so far. Returns 0 if no data has been pushed. */
+  get max()   { return this.n > 0 ? this._max : 0; }
 }
 
 
