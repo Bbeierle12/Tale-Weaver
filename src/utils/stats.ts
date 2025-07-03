@@ -35,3 +35,30 @@ export class RunningStats {
   /** The maximum value seen so far. */
   get max()   { return this._max; }
 }
+
+
+/**
+ * Calculates the Gini coefficient for a set of values (a measure of inequality).
+ * The array is sorted internally.
+ * @param values An array of numbers.
+ * @returns The Gini coefficient, a value between 0 (perfect equality) and 1.
+ */
+export function calculateGini(values: number[]): number {
+  if (values.length === 0) return 0;
+
+  const sorted = values.slice().sort((a, b) => a - b);
+  const n = sorted.length;
+  let cum = 0;
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    sum += sorted[i];
+    cum += sum;
+  }
+  
+  // If the total sum is 0, all values must be 0, implying perfect equality.
+  if (sum === 0) {
+    return 0;
+  }
+
+  return (n + 1 - 2 * cum / sum) / n;
+}

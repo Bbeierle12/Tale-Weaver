@@ -1,7 +1,7 @@
 import { Agent } from './Agent';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
-import { RunningStats } from './utils/stats';
+import { RunningStats, calculateGini } from './utils/stats';
 
 export class World {
   public width: number;
@@ -87,15 +87,29 @@ export class World {
     }
 
     const tileFoodStats = new RunningStats();
-    const flatTiles: number[] = []; // Still needed for Gini
+    // For Gini, use reservoir sampling for performance on large worlds.
+    const foodSample: number[] = [];
+    const sampleSize = Math.floor(this.width * this.height * 0.1); // 10% sample
+    let itemsSeen = 0;
+
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const food = this.tiles[y][x];
         tileFoodStats.push(food);
-        flatTiles.push(food);
+        itemsSeen++;
+        // Reservoir sampling:
+        if (foodSample.length < sampleSize) {
+          foodSample.push(food);
+        } else {
+          const replaceIndex = Math.floor(rng() * itemsSeen);
+          if (replaceIndex < sampleSize) {
+            foodSample[replaceIndex] = food;
+          }
+        }
       }
     }
-    const foodGini = this.calculateGini(flatTiles);
+    
+    const foodGini = calculateGini(foodSample);
 
     this.history.push({
       tick: this.tick,
@@ -112,29 +126,6 @@ export class World {
       maxTileFood: tileFoodStats.max,
       foodGini,
     });
-  }
-
-  /**
-   * Calculates the Gini coefficient for a set of values.
-   * A measure of inequality, where 0 is perfect equality.
-   * NOTE: This is computationally expensive (O(n log n)).
-   */
-  private calculateGini(values: number[]): number {
-    if (values.length === 0) return 0;
-    
-    const sorted = [...values].sort((a, b) => a - b);
-    const n = sorted.length;
-    const totalSum = sorted.reduce((acc, val) => acc + val, 0);
-
-    if (totalSum === 0) return 0;
-
-    let lorenzSum = 0;
-    for (let i = 0; i < n; i++) {
-      lorenzSum += (i + 1) * sorted[i];
-    }
-
-    const gini = ((2 * lorenzSum) / (n * totalSum) - (n + 1) / n);
-    return gini;
   }
 
   /** Regrow food on N random tiles, where N ≈ growthCount * dt (clamped by tile cap = 1) */
