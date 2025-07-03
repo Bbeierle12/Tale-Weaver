@@ -1,4 +1,3 @@
-'use server';
 /**
  * @fileOverview This file contains the Zod schemas and TypeScript types for the ecosystem simulation.
  * It is separate from the flow definition to allow these types to be used in client components
