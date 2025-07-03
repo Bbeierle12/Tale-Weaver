@@ -10,6 +10,7 @@ export class World {
   public agents: Agent[] = [];
 
   public tick = 0;
+  public deadCount = 0;
 
   constructor() {
     this.reset();
@@ -17,6 +18,7 @@ export class World {
 
   public reset(): void {
       this.tick = 0;
+      this.deadCount = 0;
       this.agents = [];
       // seed food field
       this.tiles = Array.from({ length: this.height }, () =>
@@ -61,7 +63,10 @@ export class World {
     
     // cull the dead
     for (let i = this.agents.length - 1; i >= 0; i--) {
-      if (this.agents[i].dead) this.agents.splice(i, 1);
+      if (this.agents[i].dead) {
+        this.agents.splice(i, 1);
+        this.deadCount++;
+      }
     }
   }
 

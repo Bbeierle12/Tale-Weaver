@@ -23,7 +23,7 @@ export class Agent {
     this.energy -= dt * 0.2;                      // basal metabolic cost
 
     // detect food tiles inside vision cone (cheap search – circle)
-    let bestX = -1, bestY = -1, bestFood = 0;
+    let bestX = this.x, bestY = this.y, bestFood = 0;
 
     const r = this.vision | 0;
     for (let dy = -r; dy <= r; dy++) {
@@ -41,17 +41,8 @@ export class Agent {
       }
     }
 
-    // turn gradually toward best target or wander
-    if (bestFood > 0) {
-        const targetDir = Math.atan2(bestY - this.y, bestX - this.x);
-        let angleDiff = targetDir - this.dir;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        this.dir += angleDiff * dt * 5; // turning speed
-    } else {
-        this.dir += (Math.random() - 0.5) * dt * 5; // random wander
-    }
-
+    // turn gradually toward best target
+    this.dir = Math.atan2(bestY - this.y, bestX - this.x);
 
     // move
     this.x += Math.cos(this.dir) * this.speed * dt;
@@ -60,8 +51,8 @@ export class Agent {
     this.y = Math.max(0, Math.min(this.world.height - 1, this.y));
 
     // eat if standing on food
-    const food = this.world.consumeFood(this.x, this.y, dt * 5); // consumption rate
-    this.energy += food * 10; // energy gain per food unit
+    const food = this.world.consumeFood(this.x | 0, this.y | 0, 0.05);
+    this.energy += food * 10;
 
     // reproduce
     if (this.energy > 25) {
