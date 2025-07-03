@@ -12,10 +12,8 @@ test('population grows and agents die from starvation over time', () => {
   }
   
   // Run the simulation for enough ticks to observe the full life cycle.
-  // A dt of 0.1 is a reasonable step to see change over many ticks
-  // without being too computationally slow for a test.
   for (let t = 0; t < 3000; t++) {
-    world.update(0.1);
+    world.step();
   }
   
   // After many ticks, we expect that some agents have had enough energy to

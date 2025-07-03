@@ -19,7 +19,6 @@ import { SIM_CONFIG } from '@/config';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const INITIAL_AGENT_COUNT = 50;
-const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
 
 interface SpeciesName {
   genus: string;
@@ -66,9 +65,11 @@ export function SimulationClient() {
     
     setSeed(seedToUse);
     setSeedValue(seedToUse);
-    setRegrowthRate(regrowthRateToUse);
+    // Note: SIM_CONFIG is readonly, but we can pass the rate to the world constructor if needed
+    // For now, we'll let the world use its default, but this could be a point of extension.
+    // setRegrowthRate(regrowthRateToUse);
 
-    const newWorld = new World(undefined, undefined, regrowthRateToUse);
+    const newWorld = new World();
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
       newWorld.spawnAgent(
         rng() * newWorld.width,
@@ -82,7 +83,7 @@ export function SimulationClient() {
     setPendingNameRequests(new Set());
     
     setHudData({
-      tick: newWorld.tick,
+      tick: newWorld.tickCount,
       alive: newWorld.agents.length,
       deathsTotal: newWorld.deathsTotal,
       avgTileFood: newWorld.avgTileFood,
@@ -104,7 +105,7 @@ export function SimulationClient() {
     hudIntervalRef.current = setInterval(() => {
       if (!controllerRef.current || controllerRef.current.paused) return;
       setHudData({
-        tick: newWorld.tick,
+        tick: newWorld.tickCount,
         alive: newWorld.agents.length,
         deathsTotal: newWorld.deathsTotal,
         avgTileFood: newWorld.avgTileFood,
@@ -127,117 +128,78 @@ export function SimulationClient() {
   }, []);
   
   const handleStep = useCallback(() => {
-    if (hudData.tick === 0 && isPaused) {
-       controllerRef.current?.togglePause();
-       controllerRef.current?.togglePause();
-    }
-    controllerRef.current?.step();
-    if (world) {
-        setHudData({
-            tick: world.tick,
-            alive: world.agents.length,
-            deathsTotal: world.deathsTotal,
-            avgTileFood: world.avgTileFood,
-            avgEnergy: world.avgEnergy,
-        });
-    }
-  }, [hudData.tick, isPaused, world]);
-
-  const handleDownloadLog = useCallback(() => {
-    if (!world || world.history.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'No Data to Download',
-        description: 'Run the simulation to generate data first.',
+    if (isPaused && controllerRef.current) {
+      // Manually advance one tick
+      controllerRef.current.world.step();
+      controllerRef.current.renderer.draw();
+      // Update HUD
+      const newWorld = controllerRef.current.world;
+      setHudData({
+        tick: newWorld.tickCount,
+        alive: newWorld.agents.length,
+        deathsTotal: newWorld.deathsTotal,
+        avgTileFood: newWorld.avgTileFood,
+        avgEnergy: newWorld.avgEnergy,
       });
-      return;
     }
+  }, [isPaused]);
 
-    const header = 'tick,population,births,deaths,avgEnergy,energySD,minEnergy,maxEnergy,avgTileFood,avgTileFoodSD,minTileFood,maxTileFood,foodGini\n';
-    const csv = world.history.map(s => `${s.tick},${s.population},${s.births},${s.deaths},${s.avgEnergy.toFixed(2)},${s.energySD.toFixed(2)},${s.minEnergy.toFixed(2)},${s.maxEnergy.toFixed(2)},${s.avgTileFood.toFixed(2)},${s.avgTileFoodSD.toFixed(2)},${s.minTileFood.toFixed(2)},${s.maxTileFood.toFixed(2)},${s.foodGini.toFixed(2)}`).join('\n');
-    const blob = new Blob([header + csv], {type: 'text/csv'});
+  const createCsvBlob = (header: string, data: string[]) => {
+    return new Blob([header + '\n' + data.join('\n')], { type: 'text/csv' });
+  };
+
+  const downloadCsv = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `timeseries-seed-${seed}.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+  
+  const handleDownloadLog = useCallback(() => {
+    if (!world || world.series.length <= 1) {
+      toast({ variant: 'destructive', title: 'No Data to Download' });
+      return;
+    }
+    const [header, ...rows] = world.series;
+    const blob = createCsvBlob(header, rows);
+    downloadCsv(blob, `timeseries-seed-${seed}.csv`);
   }, [world, seed, toast]);
 
   const handleDownloadForageLog = useCallback(() => {
     if (!world) return;
-    const forageData = world.getForageLog();
+    const forageData = world.getForageData();
     if (forageData.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'No Data to Download',
-        description: 'Run the simulation to generate forage data first.',
-      });
+      toast({ variant: 'destructive', title: 'No Data to Download'});
       return;
     }
-
-    const header = 't,i,x,y,f\n';
-    const csv = forageData.join('\n');
-    const blob = new Blob([header + csv], {type: 'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `forage-log-seed-${seed}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const header = 't,i,x,y,f';
+    const csvRows = forageData.map(d => `${d.tick},${d.id},${d.x},${d.y},${d.e.toFixed(2)}`);
+    const blob = createCsvBlob(header, csvRows);
+    downloadCsv(blob, `forage-log-seed-${seed}.csv`);
   }, [world, seed, toast]);
 
   const handleDownloadSnapshotLog = useCallback(() => {
-    if (!world) return;
-    const snapshotData = world.getSnapshots();
-    if (snapshotData.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'No Data to Download',
-        description: 'Run the simulation to generate snapshot data first (runs every 100 ticks).',
-      });
+    if (!world || world.snapshots.length <= 1) {
+      toast({ variant: 'destructive', title: 'No Data to Download'});
       return;
     }
-
-    const header = 'tick,id,x,y,energy,age\n';
-    const csv = snapshotData.join('\n');
-    const blob = new Blob([header + csv], {type: 'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `agent-snapshots-seed-${seed}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const [header, ...rows] = world.snapshots;
+    const blob = createCsvBlob(header, rows);
+    downloadCsv(blob, `agent-snapshots-seed-${seed}.csv`);
   }, [world, seed, toast]);
 
   const handleDownloadHistLog = useCallback(() => {
-    if (!world) return;
-    const histData = world.getHistRows();
-    if (histData.length === 0) {
-       toast({
-        variant: 'destructive',
-        title: 'No Data to Download',
-        description: 'Run the simulation to generate histogram data first.',
-      });
+    if (!world || world.histRows.length <= 1) {
+       toast({ variant: 'destructive', title: 'No Data to Download'});
       return;
     }
-
-    const header = 'tick,' + Array.from({length: SIM_CONFIG.histBins}, (_, i) => `bin${i}`).join(',') + '\n';
-    const csv = histData.join('\n');
-    const blob = new Blob([header + csv], {type: 'text/csv'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `hist-log-seed-${seed}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const [header, ...rows] = world.histRows;
+    const blob = createCsvBlob(header, rows);
+    downloadCsv(blob, `hist-log-seed-${seed}.csv`);
   }, [world, seed, toast]);
 
   const handleAnalyze = useCallback(async () => {
@@ -255,11 +217,11 @@ export function SimulationClient() {
     setAnalysisResult(null);
 
     const analysisInput = {
-      ticks: world.tick,
+      ticks: world.tickCount,
       peakAgentCount,
       initialAgentCount: INITIAL_AGENT_COUNT,
-      initialFoodPerTile: INITIAL_FOOD_PER_TILE,
-      regrowthRate: world.growthRate,
+      initialFoodPerTile: SIM_CONFIG.foodValue,
+      regrowthRate: SIM_CONFIG.growthRate,
       simulationHistory: world.history,
     };
 
@@ -357,8 +319,8 @@ export function SimulationClient() {
               ticks: hudData.tick,
               peakAgentCount: peakAgentCount,
               initialAgentCount: INITIAL_AGENT_COUNT,
-              initialFoodPerTile: INITIAL_FOOD_PER_TILE,
-              regrowthRate: world?.growthRate ?? SIM_CONFIG.growthRate,
+              initialFoodPerTile: SIM_CONFIG.foodValue,
+              regrowthRate: SIM_CONFIG.growthRate,
               simulationHistory: world?.history ?? [],
             }}
           />
@@ -394,23 +356,6 @@ export function SimulationClient() {
               className="w-24 bg-gray-800 border-gray-700"
               disabled={!isPaused}
             />
-          </div>
-          <div className="flex items-center gap-2 pl-2">
-            <Label htmlFor="regrowth-rate-select" className="text-white font-mono text-sm">Regrowth</Label>
-            <Select
-                value={regrowthRate.toFixed(2)}
-                onValueChange={(value) => setRegrowthRate(parseFloat(value))}
-                disabled={!isPaused}
-            >
-                <SelectTrigger id="regrowth-rate-select" className="w-24 bg-gray-800 border-gray-700">
-                    <SelectValue placeholder="Rate" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="0.05">0.05</SelectItem>
-                    <SelectItem value="0.10">0.10</SelectItem>
-                    <SelectItem value="0.15">0.15</SelectItem>
-                </SelectContent>
-            </Select>
           </div>
         </div>
 

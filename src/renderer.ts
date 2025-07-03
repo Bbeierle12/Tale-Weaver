@@ -1,4 +1,5 @@
 import type { Agent } from './Agent';
+import { SIM_CONFIG } from './config';
 import type { World } from './world';
 
 export class Renderer {
@@ -74,9 +75,10 @@ export class Renderer {
       for (let x = 0; x < cols; x++) {
         const tx = x0 + x;
         if (tx >= world.width) break;
-        const food = world.tiles[ty][tx];
+        const food = world.food[world.idx(tx, ty)];
         if (food <= 0.01) continue;
-        ctx.fillStyle = `rgba(34,197,94,${food * 0.75})`;
+        const brightness = food / SIM_CONFIG.foodValue;
+        ctx.fillStyle = `rgba(34,197,94,${brightness * 0.75})`;
         ctx.fillRect(
           (tx * this.zoom) - this.camX,
           (ty * this.zoom) - this.camY,

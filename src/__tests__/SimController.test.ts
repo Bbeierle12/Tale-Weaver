@@ -10,6 +10,7 @@ import { rng, setSeed } from '../utils/random';
 class DummyRenderer {
   /* eslint-disable @typescript-eslint/no-empty-function */
   draw() {}
+  renderer() {}
 }
 
 describe('SimController deterministic loop', () => {
@@ -24,11 +25,10 @@ describe('SimController deterministic loop', () => {
     const sim = new SimController(world, render);
 
     // monkey‑patch internal loop to avoid RAF / use virtual time
-    let now = 0;
     for (let i = 0; i < 100; i++) {
-      now += 16; // 60 FPS ≈ 16 ms
-      (sim as any).loop(now); // call private loop directly
+      (sim as any)._paused = false; // ensure it runs
+      (sim as any).loop(); // call private loop directly
     }
-    expect(world.tick).toBe(100);
+    expect(world.tickCount).toBe(100);
   });
 });

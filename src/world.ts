@@ -1,199 +1,184 @@
 import { Agent } from './Agent';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
-import { RunningStats, calculateGini } from './utils/stats';
+import { RunningStats } from './utils/stats';
 import { SIM_CONFIG } from './config';
 import { Hist } from './utils/hist';
 
 export class World {
   public width: number;
   public height: number;
-  public tiles: number[][];
+  public food: Float32Array; // Made public for renderer
   public agents: Agent[] = [];
-  public deathsTotal = 0;
-  public birthsTotal = 0;
-  public tick = 0;
-
-  // Per-tick accumulators
-  public births = 0;
-  public deaths = 0;
-  public moveDebit = 0;
-  public basalDebit = 0;
 
   // Telemetry
-  private forageBuf: string[] = new Array(SIM_CONFIG.forageBuf);
-  private fp = 0;
-  private snapshots: string[] = [];
-  private hist = new Hist(SIM_CONFIG.histBins);
-  private histRows: string[] = [];
-  public history: TickStats[] = [];
+  public tickCount = 0;
+  public births = 0; // per-tick
+  public deaths = 0; // per-tick
+  public deathsTotal = 0; // running total
+  public birthsTotal = 0; // running total
+  public moveDebit = 0;
+  public basalDebit = 0;
+  public readonly energyHist = new Hist(SIM_CONFIG.histBins);
+  public readonly forageLog: { tick: number, id: number, x: number, y: number, e: number }[];
+  private foragePtr = 0;
 
-  public readonly growthRate: number;
-  private readonly growthCount: number = 400;
-  private _totalFood: number = 0;
+  // CSV Buffers / History
+  public history: TickStats[] = []; // For AI analysis - object format
+  public readonly series: string[] = ['tick,pop,births,deaths,meanE,sdE,moveDebit,basalDebit,minFood,maxFood,foodGini'];
+  public readonly histRows: string[] = [`tick,${Array.from({ length: SIM_CONFIG.histBins }, (_, i) => `b${i}`).join(',')}`];
+  public readonly snapshots: string[] = ['tick,id,x,y,energy,age'];
 
-  constructor(width = 200, height = 200, growthRate?: number) {
+  constructor (width = 200, height = 200, growthRate?: number) {
     this.width = width;
     this.height = height;
-    this.growthRate = growthRate ?? SIM_CONFIG.growthRate;
-    this.tiles = Array.from({ length: height }, () =>
-      Array.from({ length: width }, () => 0.5)
-    );
-    this._totalFood = 0.5 * width * height;
+    this.food = new Float32Array(width * height);
+    this.food.fill(SIM_CONFIG.foodValue);
+    // Initialize forageLog with empty objects to avoid resizing
+    this.forageLog = new Array(SIM_CONFIG.forageBuf).fill(null).map(() => ({ tick: 0, id: 0, x: 0, y: 0, e: 0 }));
   }
 
-  public eatAt(x: number, y: number, biteEnergy: number): number {
-    const foodUnits = biteEnergy / SIM_CONFIG.foodValue;
-    const available = this.tiles[y][x];
-    const eatenUnits = available >= foodUnits ? foodUnits : available;
-    if (eatenUnits > 0) {
-      this.tiles[y][x] = available - eatenUnits;
-      this._totalFood -= eatenUnits;
+  // ───────── utilities
+  public idx (x: number, y: number): number { return y * this.width + x }
+
+  public eatAt (x: number, y: number, biteInFoodUnits: number): number {
+    const i = this.idx(x, y);
+    const takenUnits = Math.min(biteInFoodUnits, this.food[i]);
+    if (takenUnits > 0) {
+        this.food[i] -= takenUnits;
     }
-    return eatenUnits * SIM_CONFIG.foodValue;
+    return takenUnits;
   }
 
-  public markDeath() {
+  public recordForage (tick: number, a: Agent, e: number): void {
+    const entry = this.forageLog[this.foragePtr];
+    entry.tick = tick;
+    entry.id = a.id;
+    entry.x = a.x;
+    entry.y = a.y;
+    entry.e = e;
+    this.foragePtr = (this.foragePtr + 1) % SIM_CONFIG.forageBuf;
+  }
+
+  public getForageData(): readonly { tick: number, id: number, x: number, y: number, e: number }[] {
+    // Return only the populated part of the ring buffer
+    return this.forageLog.slice(0, this.foragePtr);
+  }
+
+  public markDeath (): void {
     this.deaths++;
   }
 
-  public recordForage(t: number, a: Agent, gain: number) {
-    this.forageBuf[this.fp++] = `${t},${a.id},${a.x},${a.y},${gain.toFixed(2)}`;
-    if (this.fp === this.forageBuf.length) this.fp = 0;
-  }
-
-  public getForageLog(): readonly string[] { return this.forageBuf.slice(0, this.fp); }
-  public getSnapshots(): readonly string[] { return this.snapshots; }
-  public getHistRows(): readonly string[] { return this.histRows; }
-
-  public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array): Agent {
-    const agent = new Agent(x, y, energy, genome);
-    this.agents.push(agent);
-    return agent;
-  }
-
-  /** Consume food from the specified tile. Returns the amount of food actually eaten. */
-  public consumeFood(x: number, y: number, amount: number): number {
-    const available = this.tiles[y][x];
-    const eaten = available >= amount ? amount : available;
-    if (eaten > 0) {
-      this.tiles[y][x] = available - eaten;
-      this._totalFood -= eaten;
-    }
-    return eaten;
-  }
-
-  /** World update: regrow food and update all agents */
-  public update(): void {
-    this.tick++;
+  // ───────── main update
+  public step (): void {
+    this.tickCount++;
     this.births = 0;
     this.deaths = 0;
-    this.basalDebit = 0;
-    this.moveDebit = 0;
+    this.energyHist.reset();
 
-    this.regrow(1); // dt is now 1 tick
+    // Food regrowth
+    for (let i = 0; i < this.food.length; i++) {
+      this.food[i] = Math.min(SIM_CONFIG.foodValue, this.food[i] + SIM_CONFIG.growthRate)
+    }
 
-    const newChildren: Agent[] = [];
+    // Tick agents
+    const nextAgents: Agent[] = [];
     for (const a of this.agents) {
       const child = a.tick(this);
       if (child) {
-        newChildren.push(child);
+        nextAgents.push(child);
+        this.births++;
       }
+      if (a.energy >= SIM_CONFIG.deathThreshold) {
+        nextAgents.push(a);
+      } else {
+        this.markDeath(); // Agent dies
+      }
+      this.energyHist.add(a.energy);
     }
-
-    const aliveAgents = this.agents.filter(a => a.energy >= SIM_CONFIG.deathThreshold);
-
-    this.agents = aliveAgents;
-    this.agents.push(...newChildren);
-
-    this.births = newChildren.length;
-    this.birthsTotal += this.births;
+    this.agents = nextAgents;
     this.deathsTotal += this.deaths;
+    this.birthsTotal += this.births;
 
-    if (this.tick % SIM_CONFIG.snapshotInterval === 0) {
-      this.snapshots.push(
-        ...this.agents.map(a => `${this.tick},${a.id},${a.x | 0},${a.y | 0},${a.energy.toFixed(2)},${a.age.toFixed(1)}`)
-      );
-    }
+    // Telemetry row
+    this.pushSeriesRow();
 
-    this.hist.reset();
-    this.agents.forEach(a => this.hist.add(a.energy));
-    this.histRows.push(`${this.tick},${this.hist.toArray().join(',')}`);
+    // Periodic snapshot
+    if (this.tickCount % SIM_CONFIG.snapshotInterval === 0) this.pushSnapshots();
 
-    if (this.tick > 0) {
-      this.logTickStats();
-    }
+    // Reset per‑tick debit counters
+    this.moveDebit = 0;
+    this.basalDebit = 0;
   }
 
-  private logTickStats(): void {
-    const hasAgents = this.agents.length > 0;
+  // ───────── telemetry helpers
+  private pushSeriesRow (): void {
+    const pop = this.agents.length;
+    
     const energyStats = new RunningStats();
     for (const agent of this.agents) {
       energyStats.push(agent.energy);
     }
-
-    const tileFoodStats = new RunningStats();
-    const foodSample: number[] = [];
-    const sampleSize = Math.floor(this.width * this.height * 0.1);
-    let itemsSeen = 0;
-
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        const food = this.tiles[y][x];
-        tileFoodStats.push(food);
-        itemsSeen++;
-        if (foodSample.length < sampleSize) {
-          foodSample.push(food);
-        } else {
-          const replaceIndex = Math.floor(rng() * itemsSeen);
-          if (replaceIndex < sampleSize) {
-            foodSample[replaceIndex] = food;
-          }
-        }
-      }
+    
+    const foodStats = new RunningStats();
+    for (const f of this.food) {
+        foodStats.push(f);
     }
 
-    const foodGini = calculateGini(foodSample);
+    const foodGini = this.foodGini();
 
-    this.history.push({
-      tick: this.tick,
-      population: this.agents.length,
-      births: this.births,
-      deaths: this.deaths,
-      avgEnergy: hasAgents ? energyStats.avg : 0,
-      energySD: hasAgents ? energyStats.sd : 0,
-      minEnergy: hasAgents ? energyStats.min : 0,
-      maxEnergy: hasAgents ? energyStats.max : 0,
-      energyHistogram: this.tick % 50 === 0 ? this.hist.toArray() : undefined,
-      avgTileFood: tileFoodStats.avg,
-      avgTileFoodSD: tileFoodStats.sd,
-      minTileFood: tileFoodStats.min,
-      maxTileFood: tileFoodStats.max,
-      foodGini,
-    });
+    const tickStats: TickStats = {
+        tick: this.tickCount,
+        population: pop,
+        births: this.births,
+        deaths: this.deaths,
+        avgEnergy: energyStats.avg,
+        energySD: energyStats.sd,
+        minEnergy: energyStats.min,
+        maxEnergy: energyStats.max,
+        energyHistogram: this.tickCount % 50 === 0 ? this.energyHist.toArray() : undefined,
+        avgTileFood: foodStats.avg,
+        avgTileFoodSD: foodStats.sd,
+        minTileFood: foodStats.min,
+        maxTileFood: foodStats.max,
+        foodGini,
+    };
+    this.history.push(tickStats);
+
+    const row = [
+      this.tickCount, pop, this.births, this.deaths,
+      energyStats.avg.toFixed(3), energyStats.sd.toFixed(3),
+      this.moveDebit.toFixed(3), this.basalDebit.toFixed(3),
+      foodStats.min.toFixed(2), foodStats.max.toFixed(2), foodGini.toFixed(3)
+    ].join(',');
+    this.series.push(row);
+    this.histRows.push(`${this.tickCount},${this.energyHist.toArray().join(',')}`);
   }
 
-  private regrow(dt: number): void {
-    if (dt <= 0 || this.growthRate <= 0) return;
-    const events = Math.round(this.growthCount * dt);
-    const increase = this.growthRate * dt;
-    for (let i = 0; i < events; i++) {
-      const x = Math.floor(rng() * this.width);
-      const y = Math.floor(rng() * this.height);
-      const current = this.tiles[y][x];
-      if (current < 1) {
-        let newValue = current + increase;
-        if (newValue > 1) newValue = 1;
-        const delta = newValue - current;
-        this.tiles[y][x] = newValue;
-        this._totalFood += delta;
-      }
+  private foodGini (): number {
+    const n = this.food.length;
+    if (n === 0) return 0;
+    let sum = 0;
+    for (const f of this.food) sum += f;
+    if (sum === 0) return 0;
+    let cum = 0;
+    const sorted = Float32Array.from(this.food).sort();
+    for (let i = 0; i < n; i++) cum += (i + 1) * sorted[i];
+    return (2 * cum) / (n * sum) - (n + 1) / n;
+  }
+
+  private pushSnapshots (): void {
+    for (const a of this.agents) {
+      this.snapshots.push(`${this.tickCount},${a.id},${a.x},${a.y},${a.energy.toFixed(3)},${a.age}`);
     }
   }
 
+  // Getters for HUD
   get avgTileFood(): number {
-    if (this.width * this.height === 0) return 0;
-    return this._totalFood / (this.width * this.height);
+    if (this.food.length === 0) return 0;
+    let sumFood = 0;
+    for (const f of this.food) sumFood += f;
+    return sumFood / this.food.length;
   }
 
   get avgEnergy(): number {
@@ -203,5 +188,11 @@ export class World {
       sumEnergy += agent.energy;
     }
     return this.agents.length ? sumEnergy / this.agents.length : 0;
+  }
+
+  public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array): Agent {
+    const agent = new Agent(x, y, energy, genome);
+    this.agents.push(agent);
+    return agent;
   }
 }

@@ -59,7 +59,7 @@ export class SimController {
     const shouldUpdate = !this._paused || this._stepOnce;
     if (shouldUpdate) {
       this._stepOnce = false;
-      this.world.update(); // dt is no longer needed for per-tick updates
+      this.world.step(); // Use the new step function
       this.renderer.draw();
     }
 
