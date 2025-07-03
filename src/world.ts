@@ -1,161 +1,90 @@
 import { Agent } from './Agent';
 
-const WORLD_WIDTH = 200;
-const WORLD_HEIGHT = 200;
-const INITIAL_RABBITS = 50;
-const INITIAL_FOXES = 5;
-const GRASS_REGROWTH_RATE = 0.2;
-const GRASS_MAX_ENERGY = 10;
-const ENERGY_PER_GRASS = 4;
-const ENERGY_PER_RABBIT = 20;
-const ENERGY_LOSS_PER_TICK = 0.1;
+const INITIAL_AGENTS = 50;
 
 export class World {
-  public tick = 0;
+  public readonly width = 200;
+  public readonly height = 200;
+  public tiles: number[][] = [];
   public agents: Agent[] = [];
-  public grass: number[][]; // Grid of grass energy
+  public tick = 0;
 
   constructor() {
-    this.grass = [];
     this.reset();
   }
 
-  private spawnAgent(type: 'rabbit' | 'fox', parent?: Agent) {
-      const x = parent ? parent.x : Math.random() * WORLD_WIDTH;
-      const y = parent ? parent.y : Math.random() * WORLD_HEIGHT;
-      const energy = parent ? parent.energy / 2 : 10;
-      if (parent) parent.energy /= 2;
+  public reset(): void {
+    this.tick = 0;
+    this.tiles = Array(this.height).fill(0).map(() => Array(this.width).fill(0));
+    // Add some random food patches
+    for (let i = 0; i < 30; i++) {
+        this.addFoodPatch(
+            Math.random() * this.width,
+            Math.random() * this.height,
+            Math.random() * 20 + 10, // radius
+        );
+    }
 
-      this.agents.push(new Agent(type, x, y, energy));
+    this.agents = [];
+    for (let i = 0; i < INITIAL_AGENTS; i++) {
+      this.spawnAgent(Math.random() * this.width, Math.random() * this.height);
+    }
   }
 
+  private addFoodPatch(x: number, y: number, radius: number) {
+      for(let i = -radius; i <= radius; i++) {
+          for(let j = -radius; j <= radius; j++) {
+              if (i*i + j*j < radius*radius) {
+                  const tx = Math.round(x+i);
+                  const ty = Math.round(y+j);
+                  if (this.inBounds(tx, ty)) {
+                      this.tiles[ty][tx] = Math.min(10, this.tiles[ty][tx] + Math.random() * 2);
+                  }
+              }
+          }
+      }
+  }
+
+  public inBounds(x: number, y: number): boolean {
+    return x >= 0 && x < this.width && y >= 0 && y < this.height;
+  }
+
+  public consumeFood(x: number, y: number, amount: number): number {
+    if (!this.inBounds(x, y)) return 0;
+    const available = this.tiles[y][x];
+    const consumed = Math.min(available, amount);
+    this.tiles[y][x] -= consumed;
+    return consumed;
+  }
+
+  public spawnAgent(x: number, y: number): void {
+    this.agents.push(new Agent(this, x, y));
+  }
+
+  public update(dt: number): void {
+    this.tick++;
+
+    // Food regrowth
+    for(let y=0; y<this.height; y++) {
+        for(let x=0; x<this.width; x++) {
+            if(this.tiles[y][x] < 10) {
+                this.tiles[y][x] += dt * 0.1;
+            }
+        }
+    }
+
+    for (const agent of this.agents) {
+      agent.update(dt);
+    }
+
+    this.agents = this.agents.filter(a => !a.dead);
+  }
 
   public getStats() {
-    const populations = { Rabbit: 0, Fox: 0, Grass: 0 };
-    let totalGrassEnergy = 0;
-
-    for (const agent of this.agents) {
-      if (agent.type === 'rabbit') populations.Rabbit++;
-      if (agent.type === 'fox') populations.Fox++;
-    }
-
-    for (let x = 0; x < WORLD_WIDTH; x++) {
-      for (let y = 0; y < WORLD_HEIGHT; y++) {
-        totalGrassEnergy += this.grass[x][y];
-      }
-    }
-    populations.Grass = Math.floor(totalGrassEnergy / GRASS_MAX_ENERGY);
-
-    return { populations };
-  }
-
-  public update(dt: number) {
-    this.tick++;
-    const speedFactor = 20;
-
-    // Grass regrowth
-    for (let x = 0; x < WORLD_WIDTH; x++) {
-      for (let y = 0; y < WORLD_HEIGHT; y++) {
-        if (this.grass[x][y] < GRASS_MAX_ENERGY) {
-          this.grass[x][y] += GRASS_REGROWTH_RATE;
-        }
-      }
-    }
-
-    const agentsToRemove = new Set<Agent>();
-    const agentsToAdd: Agent[] = [];
-
-    // Agent updates
-    for (const agent of this.agents) {
-      if (agentsToRemove.has(agent)) continue;
-
-      agent.energy -= ENERGY_LOSS_PER_TICK;
-
-      let moved = false;
-
-      if (agent.type === 'rabbit') {
-        const tileX = Math.floor(agent.x);
-        const tileY = Math.floor(agent.y);
-        if (this.grass[tileX]?.[tileY] > 1) {
-          this.grass[tileX][tileY] -= 1;
-          agent.energy += ENERGY_PER_GRASS;
-        }
-      }
-
-      if (agent.type === 'fox') {
-        let nearestRabbit: Agent | null = null;
-        let minDistance = agent.vision;
-
-        for (const other of this.agents) {
-          if (other.type === 'rabbit' && !agentsToRemove.has(other)) {
-            const dx = other.x - agent.x;
-            const dy = other.y - agent.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            if (distance < minDistance) {
-              minDistance = distance;
-              nearestRabbit = other;
-            }
-          }
-        }
-
-        if (nearestRabbit) {
-          const dx = nearestRabbit.x - agent.x;
-          const dy = nearestRabbit.y - agent.y;
-          const angle = Math.atan2(dy, dx);
-          agent.x += Math.cos(angle) * agent.speed * speedFactor * dt;
-          agent.y += Math.sin(angle) * agent.speed * speedFactor * dt;
-          moved = true;
-
-          if (minDistance < 1.5) {
-            agent.energy += ENERGY_PER_RABBIT;
-            agentsToRemove.add(nearestRabbit);
-          }
-        }
-      }
-
-      // Random walk if no other movement occurred
-      if (!moved) {
-        agent.x += (Math.random() - 0.5) * agent.speed * speedFactor * dt;
-        agent.y += (Math.random() - 0.5) * agent.speed * speedFactor * dt;
-      }
-
-      // Clamp position
-      agent.x = Math.max(0, Math.min(WORLD_WIDTH - 1, agent.x));
-      agent.y = Math.max(0, Math.min(WORLD_HEIGHT - 1, agent.y));
-
-      // Reproduction
-      if (agent.energy > agent.energyToReproduce) {
-        agent.energy /= 2;
-        const newAgent = new Agent(agent.type, agent.x, agent.y, agent.energy);
-        agentsToAdd.push(newAgent);
-      }
-
-      // Death
-      if (agent.energy <= 0) {
-        agentsToRemove.add(agent);
-      }
-    }
-
-    if (agentsToRemove.size > 0) {
-      this.agents = this.agents.filter(a => !agentsToRemove.has(a));
-    }
-    if (agentsToAdd.length > 0) {
-      this.agents.push(...agentsToAdd);
-    }
-  }
-
-  public reset() {
-    this.tick = 0;
-    this.agents = [];
-    this.grass = Array(WORLD_WIDTH)
-      .fill(0)
-      .map(() => Array(WORLD_HEIGHT).fill(GRASS_MAX_ENERGY));
-
-    for (let i = 0; i < INITIAL_RABBITS; i++) {
-      this.spawnAgent('rabbit');
-    }
-    for (let i = 0; i < INITIAL_FOXES; i++) {
-      this.spawnAgent('fox');
-    }
+    const totalFood = this.tiles.flat().reduce((sum, tile) => sum + tile, 0);
+    return {
+      population: this.agents.length,
+      food: Math.floor(totalFood),
+    };
   }
 }

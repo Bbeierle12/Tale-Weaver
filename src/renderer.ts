@@ -1,7 +1,8 @@
 import type { World } from './world';
 
 type HudData = {
-  populations: { [key: string]: number };
+  population: number;
+  food: number;
 };
 type HudStateSetter = (data: HudData) => void;
 
@@ -46,14 +47,14 @@ export class Renderer {
     this.ctx.scale(this.camera.zoom, this.camera.zoom);
     this.ctx.translate(-this.camera.x, -this.camera.y);
 
-    // Draw grass
-    const grassMaxEnergy = 10;
-    for (let x = 0; x < this.world.grass.length; x++) {
-      for (let y = 0; y < this.world.grass[x].length; y++) {
-        const energy = this.world.grass[x][y];
-        if (energy > 0.1) {
-          const brightness = Math.floor((energy / grassMaxEnergy) * 100) + 20;
-          this.ctx.fillStyle = `rgb(0, ${brightness}, 0)`;
+    // Draw food tiles
+    const maxFood = 10;
+    for (let y = 0; y < this.world.height; y++) {
+      for (let x = 0; x < this.world.width; x++) {
+        const food = this.world.tiles[y][x];
+        if (food > 0.1) {
+          const brightness = Math.floor((food / maxFood) * 150) + 20;
+          this.ctx.fillStyle = `rgb(0, ${brightness}, 20)`;
           this.ctx.fillRect(x, y, 1, 1);
         }
       }
@@ -61,10 +62,18 @@ export class Renderer {
 
     // Draw agents
     for (const agent of this.world.agents) {
-      this.ctx.fillStyle = agent.color;
+      this.ctx.fillStyle = '#FFFFFF';
       this.ctx.beginPath();
       this.ctx.arc(agent.x, agent.y, 0.75, 0, Math.PI * 2);
       this.ctx.fill();
+
+      // Draw direction indicator
+      this.ctx.strokeStyle = '#FF0000';
+      this.ctx.lineWidth = 0.2;
+      this.ctx.beginPath();
+      this.ctx.moveTo(agent.x, agent.y);
+      this.ctx.lineTo(agent.x + Math.cos(agent.dir), agent.y + Math.sin(agent.dir));
+      this.ctx.stroke();
     }
 
     this.ctx.restore();

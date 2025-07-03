@@ -10,7 +10,8 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 
 type HudData = {
-  populations: { [key: string]: number };
+  population: number;
+  food: number;
 };
 
 export function SimulationClient() {
@@ -18,7 +19,8 @@ export function SimulationClient() {
   const controllerRef = useRef<SimController | null>(null);
   const worldRef = useRef<World | null>(null);
   const [hudData, setHudData] = useState<HudData>({
-    populations: { Grass: 0, Rabbit: 0, Fox: 0 },
+    population: 0,
+    food: 0,
   });
   const [isPaused, setIsPaused] = useState(true);
 

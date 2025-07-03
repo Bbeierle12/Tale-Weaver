@@ -1,33 +1,74 @@
-/**
- * Represents a single entity in the world, like a creature or a plant.
- */
+import type { World } from './world';
+
 export class Agent {
+  // genome‑encoded traits (hard‑coded for demo)
+  readonly speed  = Math.random() * 4 + 2;       // 2 – 6 tiles / s
+  readonly vision = Math.random() * 10 + 10;     // 10 – 20 tile radius
+
+  // mutable state
   x: number;
   y: number;
-  energy: number;
-  readonly type: 'rabbit' | 'fox';
-  readonly color: string;
-  readonly speed: number;
-  readonly vision: number;
-  readonly energyToReproduce: number;
+  dir = Math.random() * Math.PI * 2;             // facing (rad)
+  energy = 10;
+  age = 0;
 
-  constructor(type: 'rabbit' | 'fox', x: number, y: number, energy: number) {
-    this.type = type;
+  constructor(private world: World, x: number, y: number) {
     this.x = x;
     this.y = y;
-    this.energy = energy;
+  }
 
-    if (type === 'rabbit') {
-      this.color = '#FFFFFF'; // White
-      this.speed = 1.5;
-      this.vision = 15;
-      this.energyToReproduce = 15;
+  /** Single AI tick – very simple “move toward best food in vision” */
+  update(dt: number) {
+    this.age += dt;
+    this.energy -= dt * 0.2;                      // basal metabolic cost
+
+    // detect food tiles inside vision cone (cheap search – circle)
+    let bestX = -1, bestY = -1, bestFood = 0;
+
+    const r = this.vision | 0;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (dx*dx + dy*dy > r*r) continue; // stay within circle
+        const tx = (this.x + dx) | 0;
+        const ty = (this.y + dy) | 0;
+        if (!this.world.inBounds(tx, ty)) continue;
+        const food = this.world.tiles[ty][tx];
+        if (food > bestFood) {
+          bestFood = food;
+          bestX = tx;
+          bestY = ty;
+        }
+      }
+    }
+
+    // turn gradually toward best target or wander
+    if (bestFood > 0) {
+        const targetDir = Math.atan2(bestY - this.y, bestX - this.x);
+        let angleDiff = targetDir - this.dir;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        this.dir += angleDiff * dt * 5; // turning speed
     } else {
-      // fox
-      this.color = '#FFA500'; // Orange
-      this.speed = 2;
-      this.vision = 30;
-      this.energyToReproduce = 40;
+        this.dir += (Math.random() - 0.5) * dt * 5; // random wander
+    }
+
+
+    // move
+    this.x += Math.cos(this.dir) * this.speed * dt;
+    this.y += Math.sin(this.dir) * this.speed * dt;
+    this.x = Math.max(0, Math.min(this.world.width  - 1, this.x));
+    this.y = Math.max(0, Math.min(this.world.height - 1, this.y));
+
+    // eat if standing on food
+    const food = this.world.consumeFood(this.x | 0, this.y | 0, dt * 5); // consumption rate
+    this.energy += food * 2; // energy gain per food unit
+
+    // reproduce
+    if (this.energy > 25) {
+      this.energy -= 10;
+      this.world.spawnAgent(this.x, this.y);
     }
   }
+
+  get dead(): boolean { return this.energy <= 0 || this.age > 600; }
 }
