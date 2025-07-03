@@ -14,6 +14,7 @@ export interface SimConfig {
   histBins: number          // energy‑histogram resolution
   snapshotInterval: number  // ticks between snapshots
   forageBuf: number         // ring‑buffer length
+  metricsInterval: number   // how many ticks between flushing secondary metrics
 }
 
 export const SIM_CONFIG: SimConfig = {
@@ -27,5 +28,6 @@ export const SIM_CONFIG: SimConfig = {
   basalRate:          0.01,
   histBins:           10,
   snapshotInterval:   100,
-  forageBuf:          20_000
+  forageBuf:          20_000,
+  metricsInterval:    1
 };

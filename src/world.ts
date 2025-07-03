@@ -25,9 +25,14 @@ export class World {
 
   // CSV Buffers / History
   public history: TickStats[] = []; // For AI analysis - object format
-  public readonly series: string[] = ['tick,pop,births,deaths,meanE,sdE,moveDebit,basalDebit,minFood,maxFood,foodGini'];
+  public readonly series: string[] = ['tick,pop,births,deaths,meanE,sdE,moveDebit,basalDebit,minFood,maxFood,foodGini,successRate,meanSteps'];
   public readonly histRows: string[] = [`tick,${Array.from({ length: SIM_CONFIG.histBins }, (_, i) => `b${i}`).join(',')}`];
   public readonly snapshots: string[] = ['tick,id,x,y,energy,age'];
+  public readonly moveStatsRows: string[] = ['tick,totalSteps,totalDist,meanSteps,sdSteps,meanDist,sdDist'];
+  public readonly searchRows: string[] = ['tick,successRate'];
+
+  // Scratch buffers to avoid GC
+  private stepBuf: number[] = [];
 
   constructor (width = 200, height = 200) {
     this.width = width;
@@ -106,8 +111,13 @@ export class World {
 
     // Periodic snapshot
     if (this.tickCount % SIM_CONFIG.snapshotInterval === 0) this.pushSnapshots();
+    
+    // Reset agent counters for next tick
+    for (const agent of this.agents) {
+        agent.resetTickMetrics();
+    }
 
-    // Reset per‑tick debit counters
+    // Reset per‑tick world debit counters
     this.moveDebit = 0;
     this.basalDebit = 0;
   }
@@ -116,22 +126,59 @@ export class World {
   private pushSeriesRow (): void {
     const pop = this.agents.length;
     
-    // Calculate stats on the final population of the tick
+    // --- Existing Stats ---
     const energyStats = new RunningStats();
     this.energyHist.reset();
     for (const agent of this.agents) {
       energyStats.push(agent.energy);
       this.energyHist.add(agent.energy);
     }
-    
     const foodStats = new RunningStats();
     const foodValues: number[] = [];
     for (const f of this.food) {
         foodStats.push(f);
         foodValues.push(f);
     }
-
     const foodGini = calculateGini(foodValues);
+
+    // ---- New Search & Movement Stats ----
+    this.stepBuf.length = pop;
+    let sumSteps = 0;
+    let sumDist = 0;
+    let success = 0;
+    
+    for (let i = 0; i < pop; i++) {
+      const a = this.agents[i];
+      this.stepBuf[i] = a.stepsTaken;
+      sumSteps += a.stepsTaken;
+      sumDist += a.distanceTravelled;
+      if (a.foundFood) success++;
+    }
+    
+    const meanSteps = pop > 0 ? sumSteps / pop : 0;
+    const meanDist = pop > 0 ? sumDist / pop : 0;
+    const successRate = pop > 0 ? success / pop : 0;
+
+    let varSteps = 0;
+    for (const steps of this.stepBuf) {
+        const dStep = steps - meanSteps;
+        varSteps += dStep * dStep;
+    }
+    const sdSteps = pop > 0 ? Math.sqrt(varSteps / pop) : 0;
+    
+    let varDist = 0;
+    for (const steps of this.stepBuf) {
+        const dDist = steps - meanDist; // Using steps as proxy for distance
+        varDist += dDist * dDist;
+    }
+    const sdDist = pop > 0 ? Math.sqrt(varDist / pop) : 0;
+
+    if (this.tickCount % SIM_CONFIG.metricsInterval === 0) {
+        this.moveStatsRows.push(
+            `${this.tickCount},${sumSteps},${sumDist.toFixed(2)},${meanSteps.toFixed(2)},${sdSteps.toFixed(2)},${meanDist.toFixed(2)},${sdDist.toFixed(2)}`
+        );
+        this.searchRows.push(`${this.tickCount},${successRate.toFixed(3)}`);
+    }
 
     const tickStats: TickStats = {
         tick: this.tickCount,
@@ -155,7 +202,8 @@ export class World {
       this.tickCount, pop, this.births, this.deaths,
       energyStats.avg.toFixed(3), energyStats.sd.toFixed(3),
       this.moveDebit.toFixed(3), this.basalDebit.toFixed(3),
-      foodStats.min.toFixed(2), foodStats.max.toFixed(2), foodGini.toFixed(3)
+      foodStats.min.toFixed(2), foodStats.max.toFixed(2), foodGini.toFixed(3),
+      successRate.toFixed(3), meanSteps.toFixed(2)
     ].join(',');
     this.series.push(row);
     this.histRows.push(`${this.tickCount},${this.energyHist.toArray().join(',')}`);

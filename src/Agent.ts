@@ -17,6 +17,11 @@ export class Agent {
   foodConsumed = 0        // aggregate E eaten
   color: string;
 
+  // Per-tick metrics, reset by World
+  stepsTaken = 0
+  distanceTravelled = 0
+  foundFood = false
+
   constructor (x: number, y: number, energy = 5, genome?: Float32Array) {
     this.x = x
     this.y = y
@@ -65,6 +70,7 @@ export class Agent {
     if (energyGained > 0) {
       this.energy += energyGained
       this.foodConsumed += energyGained
+      this.foundFood = true;
       world.recordForage(world.tickCount, this, energyGained)
     }
 
@@ -90,7 +96,16 @@ export class Agent {
       case 2: this.y = (this.y + 1) % world.height; break
       case 3: this.y = (this.y + world.height - 1) % world.height; break
     }
+    this.stepsTaken += 1;
+    this.distanceTravelled += 1; // Cardinal moves have distance of 1
     this.energy -= SIM_CONFIG.moveCostPerStep
     world.moveDebit += SIM_CONFIG.moveCostPerStep
+  }
+
+  /** World calls this after it has harvested the counters. */
+  public resetTickMetrics(): void {
+    this.stepsTaken = 0;
+    this.distanceTravelled = 0;
+    this.foundFood = false;
   }
 }
