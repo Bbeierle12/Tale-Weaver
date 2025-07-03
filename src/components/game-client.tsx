@@ -6,32 +6,19 @@ import { Narrator } from '@/components/narrator';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { runSimulationStepAction } from '@/app/actions';
 import type { EcosystemState } from '@/ai/schemas';
 import { Play, RotateCw } from 'lucide-react';
-
-const INITIAL_NARRATION =
-  'A new world awakens, teeming with potential. Lush grass sways in the gentle breeze, a small warren of rabbits nibbles contentedly, and a lone fox watches from a distance. The story of this ecosystem is ready to be written.';
-
-const INITIAL_STATE: EcosystemState = {
-  day: 1,
-  populations: {
-    Grass: 1000,
-    Rabbits: 20,
-    Foxes: 5,
-  },
-  environment: {
-    temperature: 15,
-    rainfall: 5,
-  },
-  log: ['The simulation has begun in a temperate meadow.'],
-};
+import { SimController, INITIAL_NARRATION } from '@/SimController';
 
 export function SimulationClient() {
   const [isPending, startTransition] = useTransition();
+  // Use state to hold the controller instance to persist it across renders.
+  const [controller] = useState(() => new SimController());
+  
+  // Sync React state with the controller's state.
   const [simulationState, setSimulationState] =
-    useState<EcosystemState>(INITIAL_STATE);
-  const [narration, setNarration] = useState<string>(INITIAL_NARRATION);
+    useState<EcosystemState>(controller.getState());
+  const [narration, setNarration] = useState<string>(controller.getNarration());
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -40,17 +27,18 @@ export function SimulationClient() {
 
   const handleNextDay = () => {
     startTransition(async () => {
-      const result = await runSimulationStepAction(simulationState);
-      if (result) {
-        setSimulationState(result.newState);
-        setNarration(result.narration);
-      }
+      await controller.nextDay();
+      // Create a new object to ensure React detects the state change.
+      setSimulationState({ ...controller.getState() });
+      setNarration(controller.getNarration());
     });
   };
 
   const handleReset = () => {
-    setSimulationState(INITIAL_STATE);
-    setNarration(INITIAL_NARRATION);
+    controller.reset();
+    // Create a new object to ensure React detects the state change.
+    setSimulationState({ ...controller.getState() });
+    setNarration(controller.getNarration());
   };
 
   if (!isClient) {
