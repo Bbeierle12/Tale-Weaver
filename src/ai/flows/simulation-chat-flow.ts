@@ -24,6 +24,9 @@ const prompt = ai.definePrompt({
   name: 'simulationChatPrompt',
   input: {schema: SimulationChatInputSchema},
   output: {schema: SimulationChatOutputSchema},
+  config: {
+    maxOutputTokens: 750000,
+  },
   prompt: `You are a helpful and brilliant simulation analyst called 'SIM-SAGE'. The user is running an agent-based simulation and will ask you questions about the data.
 
 Your task is to answer the user's questions based on the provided simulation data. You have access to the full tick-by-tick history of the simulation.
