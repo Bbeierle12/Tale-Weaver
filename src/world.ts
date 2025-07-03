@@ -1,7 +1,7 @@
 import { Agent } from './Agent';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
-import { RunningStats } from './utils/stats';
+import { RunningStats, calculateGini } from './utils/stats';
 import { SIM_CONFIG } from './config';
 import { Hist } from './utils/hist';
 
@@ -29,7 +29,7 @@ export class World {
   public readonly histRows: string[] = [`tick,${Array.from({ length: SIM_CONFIG.histBins }, (_, i) => `b${i}`).join(',')}`];
   public readonly snapshots: string[] = ['tick,id,x,y,energy,age'];
 
-  constructor (width = 200, height = 200, growthRate?: number) {
+  constructor (width = 200, height = 200) {
     this.width = width;
     this.height = height;
     this.food = new Float32Array(width * height);
@@ -62,7 +62,8 @@ export class World {
 
   public getForageData(): readonly { tick: number, id: number, x: number, y: number, e: number }[] {
     // Return only the populated part of the ring buffer
-    return this.forageLog.slice(0, this.foragePtr);
+    const populated = this.forageLog.slice(0, this.foragePtr).filter(e => e.tick > 0);
+    return populated;
   }
 
   public markDeath (): void {
@@ -72,11 +73,8 @@ export class World {
   // ───────── main update
   public step (): void {
     this.tickCount++;
-    this.deathsTotal += this.deaths;
-    this.birthsTotal += this.births;
     this.births = 0;
     this.deaths = 0;
-    this.energyHist.reset();
 
     // Food regrowth
     for (let i = 0; i < this.food.length; i++) {
@@ -98,9 +96,10 @@ export class World {
       } else {
         this.markDeath(); // Agent dies
       }
-      this.energyHist.add(a.energy);
     }
     this.agents = nextAgents;
+    this.deathsTotal += this.deaths;
+    this.birthsTotal += this.births;
 
     // Telemetry row
     this.pushSeriesRow();
@@ -117,17 +116,22 @@ export class World {
   private pushSeriesRow (): void {
     const pop = this.agents.length;
     
+    // Calculate stats on the final population of the tick
     const energyStats = new RunningStats();
+    this.energyHist.reset();
     for (const agent of this.agents) {
       energyStats.push(agent.energy);
+      this.energyHist.add(agent.energy);
     }
     
     const foodStats = new RunningStats();
+    const foodValues: number[] = [];
     for (const f of this.food) {
         foodStats.push(f);
+        foodValues.push(f);
     }
 
-    const foodGini = this.foodGini();
+    const foodGini = calculateGini(foodValues);
 
     const tickStats: TickStats = {
         tick: this.tickCount,
@@ -155,18 +159,6 @@ export class World {
     ].join(',');
     this.series.push(row);
     this.histRows.push(`${this.tickCount},${this.energyHist.toArray().join(',')}`);
-  }
-
-  private foodGini (): number {
-    const n = this.food.length;
-    if (n === 0) return 0;
-    let sum = 0;
-    for (const f of this.food) sum += f;
-    if (sum === 0) return 0;
-    let cum = 0;
-    const sorted = Float32Array.from(this.food).sort();
-    for (let i = 0; i < n; i++) cum += (i + 1) * sorted[i];
-    return (2 * cum) / (n * sum) - (n + 1) / n;
   }
 
   private pushSnapshots (): void {
