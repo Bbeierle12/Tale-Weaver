@@ -1,6 +1,5 @@
 import type { World } from './world';
 import type { Renderer } from './renderer';
-import type { HudProps } from './components/hud';
 
 /**
  * A deterministic heartbeat that advances the world and renderer.
@@ -11,7 +10,6 @@ export class SimController {
   private last = 0;
   private readonly world: World;
   private readonly renderer: Renderer;
-  private readonly setHudData: (data: HudProps['stats']) => void;
 
   private _paused = false;
   private _stepOnce = false;
@@ -21,14 +19,9 @@ export class SimController {
     return this._paused;
   }
 
-  constructor(
-    world: World,
-    renderer: Renderer,
-    setHudData: (data: HudProps['stats']) => void
-  ) {
+  constructor(world: World, renderer: Renderer) {
     this.world = world;
     this.renderer = renderer;
-    this.setHudData = setHudData;
   }
 
   /** Toggle pause state */
@@ -62,10 +55,6 @@ export class SimController {
       this._stepOnce = false;
       this.world.update(dt);
       this.renderer.draw();
-      this.setHudData({
-        population: this.world.agents.length,
-        avgEnergy: this.world.avgEnergy,
-      });
     }
 
     requestAnimationFrame(this.loop);
