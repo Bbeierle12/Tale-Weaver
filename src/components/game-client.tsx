@@ -6,7 +6,7 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Square, Download, MessageSquare, BrainCircuit, FileText, StepForward } from 'lucide-react';
+import { Pause, Play, RotateCcw, Download, MessageSquare, BrainCircuit, FileText, StepForward } from 'lucide-react';
 import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
@@ -32,7 +32,6 @@ export function SimulationClient() {
 
   const [world, setWorld] = useState<World | null>(null);
   const [isPaused, setIsPaused] = useState(true);
-  const [isStopped, setIsStopped] = useState(true);
   const [hudData, setHudData] = useState({
     tick: 0,
     alive: 0,
@@ -64,7 +63,6 @@ export function SimulationClient() {
     
     setSeed(seedToUse);
     setSeedValue(seedToUse);
-    setIsStopped(false);
 
     const newWorld = new World();
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
@@ -125,19 +123,24 @@ export function SimulationClient() {
   }, []);
   
   const handleStep = useCallback(() => {
+    // If we're at tick 0, we need to ensure the simulation is ready,
+    // but without starting the continuous loop.
+    if (hudData.tick === 0 && isPaused) {
+       controllerRef.current?.togglePause(); // Start it
+       controllerRef.current?.togglePause(); // then pause it immediately.
+    }
     controllerRef.current?.step();
-  }, []);
-
-  const handleStop = useCallback(() => {
-    if (controllerRef.current) {
-      controllerRef.current.stop();
+    // Manually update HUD after a step since the interval won't run.
+    if (world) {
+        setHudData({
+            tick: world.tick,
+            alive: world.agents.length,
+            deathsTotal: world.deathsTotal,
+            avgTileFood: world.avgTileFood,
+            avgEnergy: world.avgEnergy,
+        });
     }
-    if (hudIntervalRef.current) {
-      clearInterval(hudIntervalRef.current);
-    }
-    setIsPaused(true);
-    setIsStopped(true);
-  }, []);
+  }, [hudData.tick, isPaused, world]);
 
   const handleDownloadLog = useCallback(() => {
     if (!world || world.history.length === 0) {
@@ -288,7 +291,7 @@ export function SimulationClient() {
       <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
         {/* Left-aligned controls */}
         <div className="flex items-center gap-2">
-          <Button onClick={handleTogglePause} className="w-28" disabled={isStopped}>
+          <Button onClick={handleTogglePause} className="w-28">
             {isPaused ? (
               <Play className="mr-2 h-4 w-4" />
             ) : (
@@ -296,12 +299,8 @@ export function SimulationClient() {
             )}
             {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
           </Button>
-          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused || isStopped} title="Step Forward">
+          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward">
             <StepForward className="h-4 w-4" />
-          </Button>
-          <Button onClick={handleStop} variant="outline" disabled={isStopped}>
-            <Square className="mr-2 h-4 w-4" />
-            Stop
           </Button>
           <Button onClick={() => resetSimulation(seed)} variant="outline">
             <RotateCcw className="mr-2 h-4 w-4" />
@@ -315,7 +314,7 @@ export function SimulationClient() {
               value={seed}
               onChange={(e) => setSeedValue(Number(e.target.value) || 0)}
               className="w-24 bg-gray-800 border-gray-700"
-              disabled={!isPaused || isStopped}
+              disabled={!isPaused}
             />
           </div>
         </div>
