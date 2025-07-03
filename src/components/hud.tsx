@@ -1,7 +1,7 @@
 import { Card } from './ui/card';
 import { Users, Zap } from 'lucide-react';
 
-type HudProps = {
+export type HudProps = {
   stats: {
     population: number;
     avgEnergy: number;

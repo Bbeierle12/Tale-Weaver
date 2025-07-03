@@ -4,21 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PawPrint, Play, RotateCw, Square } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Hud } from './hud';
+import { Hud, type HudProps } from './hud';
 import { SimController } from '@/SimController';
 import { World } from '@/world';
 import { Renderer } from '@/renderer';
-
-type HudData = {
-  population: number;
-  avgEnergy: number;
-};
 
 export function SimulationClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const controllerRef = useRef<SimController | null>(null);
   const worldRef = useRef<World | null>(null);
-  const [hudData, setHudData] = useState<HudData>({
+  const [hudData, setHudData] = useState<HudProps['stats']>({
     population: 0,
     avgEnergy: 0,
   });
@@ -28,8 +23,8 @@ export function SimulationClient() {
     if (!canvasRef.current) return;
 
     const world = new World();
-    const renderer = new Renderer(world, canvasRef.current, setHudData);
-    const controller = new SimController(world, renderer);
+    const renderer = new Renderer(canvasRef.current, world);
+    const controller = new SimController(world, renderer, setHudData);
 
     worldRef.current = world;
     controllerRef.current = controller;
