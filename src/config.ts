@@ -16,7 +16,7 @@ export interface SimConfig {
   forageBuf: number         // ring‑buffer length
 }
 
-export const SIM_CONFIG: Readonly<SimConfig> = {
+export const SIM_CONFIG: SimConfig = {
   growthRate:         0.15,
   biteEnergy:         1,
   foodValue:          10,
@@ -28,4 +28,4 @@ export const SIM_CONFIG: Readonly<SimConfig> = {
   histBins:           10,
   snapshotInterval:   100,
   forageBuf:          20_000
-} as const;
+};
