@@ -9,7 +9,8 @@ export class World {
   public height: number;
   public tiles: number[][];
   public agents: Agent[] = [];
-  public dead = 0;
+  public deathsTotal = 0;
+  public birthsTotal = 0;
   public tick = 0;
 
   // Data logging for AI analysis
@@ -87,6 +88,7 @@ export class World {
     if (newborns.length > 0) {
       this.agents.push(...newborns);
       this.birthsThisTick = newborns.length;
+      this.birthsTotal += newborns.length;
     }
 
     // Cull the dead
@@ -94,7 +96,7 @@ export class World {
     while(i--) {
       if (this.agents[i].dead) {
         this.agents.splice(i, 1);
-        this.dead++;
+        this.deathsTotal++;
         this.deathsThisTick++;
       }
     }

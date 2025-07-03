@@ -35,7 +35,7 @@ export function SimulationClient() {
   const [hudData, setHudData] = useState({
     tick: 0,
     alive: 0,
-    dead: 0,
+    deathsTotal: 0,
     avgTileFood: 0,
     avgEnergy: 0,
   });
@@ -77,7 +77,7 @@ export function SimulationClient() {
     setHudData({
       tick: newWorld.tick,
       alive: newWorld.agents.length,
-      dead: newWorld.dead,
+      deathsTotal: newWorld.deathsTotal,
       avgTileFood: newWorld.avgTileFood,
       avgEnergy: newWorld.avgEnergy,
     });
@@ -98,7 +98,7 @@ export function SimulationClient() {
       setHudData({
         tick: newWorld.tick,
         alive: newWorld.agents.length,
-        dead: newWorld.dead,
+        deathsTotal: newWorld.deathsTotal,
         avgTileFood: newWorld.avgTileFood,
         avgEnergy: newWorld.avgEnergy,
       });
