@@ -1,5 +1,5 @@
 import { Agent } from './Agent';
-import type { MoveSample } from './metrics';
+import type { MoveSample, TileEvent } from './metrics';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
 import { RunningStats, calculateGini } from './utils/stats';
@@ -22,6 +22,10 @@ export class World {
   private static readonly FORAGE_LOG_CAP = 32_768;
   private forageLog: MoveSample[] = new Array<MoveSample>(World.FORAGE_LOG_CAP);
   private foragePtr = 0;
+
+  private static readonly TILE_LOG_CAP = 32_768;
+  private tileLog: TileEvent[] = new Array<TileEvent>(World.TILE_LOG_CAP);
+  private tileLogPtr = 0;
 
   public readonly growthRate: number = 0.15; // food regrowth per second (per regrowth event)
   private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
@@ -48,6 +52,15 @@ export class World {
     return this.forageLog.slice(0, this.foragePtr);
   }
 
+  public recordTileEvent(tick: number, x: number, y: number, foodAfter: number, delta: number) {
+    this.tileLog[this.tileLogPtr++] = { tick, x, y, foodAfter, delta };
+    if (this.tileLogPtr === World.TILE_LOG_CAP) this.tileLogPtr = 0; // overwrite oldest
+  }
+
+  public getTileLog(): readonly TileEvent[] {
+    return this.tileLog.slice(0, this.tileLogPtr);
+  }
+
   public spawnAgent(
     x: number,
     y: number
@@ -62,8 +75,10 @@ export class World {
     const available = this.tiles[y][x];
     const eaten = available >= amount ? amount : available;
     if (eaten > 0) {
-      this.tiles[y][x] = available - eaten;
+      const newValue = available - eaten;
+      this.tiles[y][x] = newValue;
       this._totalFood -= eaten;
+      this.recordTileEvent(this.tick, x, y, newValue, -eaten);
     }
     return eaten;
   }
@@ -196,8 +211,10 @@ export class World {
       if (current < 1) {
         let newValue = current + increase;
         if (newValue > 1) newValue = 1;
+        const delta = newValue - current;
         this.tiles[y][x] = newValue;
-        this._totalFood += (newValue - current);
+        this._totalFood += delta;
+        this.recordTileEvent(this.tick, x, y, newValue, delta);
       }
     }
   }
