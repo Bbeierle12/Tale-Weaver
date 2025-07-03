@@ -1,10 +1,10 @@
 // src/metrics.ts
-export interface MoveSample {
+export interface ForageSample {
   tick: number;
   id: number;
   x: number;
   y: number;
-  food: number; // eaten this tick
+  foodEaten: number;
 }
 
 export interface TileEvent {

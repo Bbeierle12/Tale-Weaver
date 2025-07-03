@@ -1,5 +1,5 @@
 import { Agent } from './Agent';
-import type { MoveSample, TileEvent } from './metrics';
+import type { ForageSample, TileEvent } from './metrics';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
 import { RunningStats, calculateGini } from './utils/stats';
@@ -20,7 +20,7 @@ export class World {
 
   // Spatial telemetry
   private static readonly FORAGE_LOG_CAP = 32_768;
-  private forageLog: MoveSample[] = new Array<MoveSample>(World.FORAGE_LOG_CAP);
+  private forageLog: ForageSample[] = new Array<ForageSample>(World.FORAGE_LOG_CAP);
   private foragePtr = 0;
 
   private static readonly TILE_LOG_CAP = 32_768;
@@ -42,13 +42,13 @@ export class World {
     this._totalFood = 0.5 * width * height;
   }
 
-  public recordForage(tick: number, id: number, x: number, y: number, food: number) {
-    this.forageLog[this.foragePtr++] = { tick, id, x, y, food };
+  public recordForage(tick: number, id: number, x: number, y: number, foodEaten: number) {
+    this.forageLog[this.foragePtr++] = { tick, id, x, y, foodEaten };
     if (this.foragePtr === World.FORAGE_LOG_CAP) this.foragePtr = 0; // overwrite oldest
   }
 
   // expose snapshot for analysis or CSV dump
-  public getForageLog(): readonly MoveSample[] {
+  public getForageLog(): readonly ForageSample[] {
     return this.forageLog.slice(0, this.foragePtr);
   }
 
