@@ -1,3 +1,4 @@
+
 /* eslint-disable no-loss-of-precision */
 import { randomGenome, mapLinear, mutateGenome } from './utils/genetics'
 import type { World } from './world'
@@ -91,7 +92,7 @@ export class Agent {
     // 3. Consume food
     const tx = this.x | 0;
     const ty = this.y | 0;
-    const eaten = this.world.consumeTileFood(tx, ty, CONSUMPTION_AMOUNT * dt);
+    const eaten = this.world.consumeFood(tx, ty, CONSUMPTION_AMOUNT * dt);
     this.energy += eaten * FOOD_ENERGY_VALUE;
 
     // 4. Metabolic drain

@@ -1,3 +1,4 @@
+
 /**
  * Unit tests for World food & agent mechanics.
  */
@@ -37,12 +38,11 @@ describe('World resource simulation', () => {
 
   it('regrows food over time', () => {
     const world = new World();
-    // Clear the board
-    for (let y = 0; y < world.height; y++) {
-        for (let x = 0; x < world.width; x++) {
-            world.tiles[y][x] = 0;
-        }
-    }
+    // Clear the board and totalFood tracker
+    world.tiles = Array.from({ length: world.height }, () =>
+      Array.from({ length: world.width }, () => 0)
+    );
+    (world as any)._totalFood = 0; // Access private for test
     expect(world.avgTileFood).toBe(0);
 
     // Simulate 1 second of growth
@@ -53,8 +53,7 @@ describe('World resource simulation', () => {
   });
 
   it('allows agents to consume food', () => {
-    const world = new World();
-    world.tiles[10][10] = 0.5;
+    const world = new World(); // starts with 0.5 food everywhere
     const eaten = world.consumeFood(10, 10, 0.1);
     expect(eaten).toBe(0.1);
     expect(world.tiles[10][10]).toBeCloseTo(0.4);
@@ -63,20 +62,16 @@ describe('World resource simulation', () => {
   it('returns less food than requested if unavailable', () => {
     const world = new World();
     world.tiles[10][10] = 0.05;
+    (world as any)._totalFood -= (0.5 - 0.05); // Adjust private tracker for test
     const eaten = world.consumeFood(10, 10, 0.1);
     expect(eaten).toBe(0.05);
     expect(world.tiles[10][10]).toBe(0);
   });
 
   it('calculates average metrics correctly', () => {
-    const world = new World();
+    const world = new World(); // starts with 0.5 food everywhere
     
     // Test avgTileFood
-    for (let y = 0; y < world.height; y++) {
-        for (let x = 0; x < world.width; x++) {
-            world.tiles[y][x] = 0.5;
-        }
-    }
     expect(world.avgTileFood).toBeCloseTo(0.5);
 
     // Test avgEnergy
