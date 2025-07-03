@@ -15,13 +15,13 @@ export class World {
 
   // Data logging for AI analysis
   public history: TickStats[] = [];
-  public deathsThisTick = 0;
-  public birthsThisTick = 0;
+  private deaths = 0;
+  private births = 0;
 
   // Spatial telemetry
-  private static readonly MOVE_LOG_CAP = 32_768;
-  private moveLog: MoveSample[] = new Array<MoveSample>(World.MOVE_LOG_CAP);
-  private movePtr = 0;
+  private static readonly FORAGE_LOG_CAP = 32_768;
+  private forageLog: MoveSample[] = new Array<MoveSample>(World.FORAGE_LOG_CAP);
+  private foragePtr = 0;
 
   public readonly growthRate: number = 0.15; // food regrowth per second (per regrowth event)
   private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
@@ -38,14 +38,14 @@ export class World {
     this._totalFood = 0.5 * width * height;
   }
 
-  public recordMove(tick: number, id: number, x: number, y: number, food: number) {
-    this.moveLog[this.movePtr++] = { tick, id, x, y, food };
-    if (this.movePtr === World.MOVE_LOG_CAP) this.movePtr = 0; // overwrite oldest
+  public recordForage(tick: number, id: number, x: number, y: number, food: number) {
+    this.forageLog[this.foragePtr++] = { tick, id, x, y, food };
+    if (this.foragePtr === World.FORAGE_LOG_CAP) this.foragePtr = 0; // overwrite oldest
   }
 
   // expose snapshot for analysis or CSV dump
-  public getMoveLog(): readonly MoveSample[] {
-    return this.moveLog.slice(0, this.movePtr);
+  public getForageLog(): readonly MoveSample[] {
+    return this.forageLog.slice(0, this.foragePtr);
   }
 
   public spawnAgent(
@@ -71,8 +71,8 @@ export class World {
   /** World update: regrow food and update all agents */
   public update(dt: number): void {
     this.tick++;
-    this.deathsThisTick = 0;
-    this.birthsThisTick = 0;
+    this.deaths = 0;
+    this.births = 0;
     this.regrow(dt);
 
     const newborns: Agent[] = [];
@@ -87,7 +87,7 @@ export class World {
     // Add newborns to the population
     if (newborns.length > 0) {
       this.agents.push(...newborns);
-      this.birthsThisTick = newborns.length;
+      this.births = newborns.length;
       this.birthsTotal += newborns.length;
     }
 
@@ -97,7 +97,7 @@ export class World {
       if (this.agents[i].dead) {
         this.agents.splice(i, 1);
         this.deathsTotal++;
-        this.deathsThisTick++;
+        this.deaths++;
       }
     }
 
@@ -144,9 +144,9 @@ export class World {
 
     this.history.push({
       tick: this.tick,
-      liveAgents: this.agents.length,
-      births: this.birthsThisTick,
-      deaths: this.deathsThisTick,
+      population: this.agents.length,
+      births: this.births,
+      deaths: this.deaths,
       avgEnergy: hasAgents ? energyStats.avg : 0,
       energySD: hasAgents ? energyStats.sd : 0,
       minEnergy: hasAgents ? energyStats.min : 0,

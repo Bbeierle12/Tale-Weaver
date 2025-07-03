@@ -122,7 +122,7 @@ export class Agent {
     const eaten = world.consumeFood(tx, ty, this.foodConsumptionAmount);
     if (eaten > 0) {
       this.energy += eaten * 10.0; // food energy value is 10
-      world.recordMove(world.tick, this.id, tx, ty, eaten);
+      world.recordForage(world.tick, this.id, tx, ty, eaten);
     }
 
     // Reproduction
