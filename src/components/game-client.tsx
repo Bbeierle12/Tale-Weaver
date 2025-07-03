@@ -32,6 +32,7 @@ export function SimulationClient() {
 
   const [world, setWorld] = useState<World | null>(null);
   const [isPaused, setIsPaused] = useState(true);
+  const [isStopped, setIsStopped] = useState(true);
   const [hudData, setHudData] = useState({
     tick: 0,
     alive: 0,
@@ -54,12 +55,16 @@ export function SimulationClient() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    if (controllerRef.current) {
+      controllerRef.current.stop();
+    }
     if (hudIntervalRef.current) {
       clearInterval(hudIntervalRef.current);
     }
     
     setSeed(seedToUse);
     setSeedValue(seedToUse);
+    setIsStopped(false);
 
     const newWorld = new World();
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
@@ -95,6 +100,7 @@ export function SimulationClient() {
     renderer.draw();
 
     hudIntervalRef.current = setInterval(() => {
+      if (!controllerRef.current || controllerRef.current.paused) return;
       setHudData({
         tick: newWorld.tick,
         alive: newWorld.agents.length,
@@ -120,6 +126,17 @@ export function SimulationClient() {
   
   const handleStep = useCallback(() => {
     controllerRef.current?.step();
+  }, []);
+
+  const handleStop = useCallback(() => {
+    if (controllerRef.current) {
+      controllerRef.current.stop();
+    }
+    if (hudIntervalRef.current) {
+      clearInterval(hudIntervalRef.current);
+    }
+    setIsPaused(true);
+    setIsStopped(true);
   }, []);
 
   const handleDownloadLog = useCallback(() => {
@@ -172,17 +189,18 @@ export function SimulationClient() {
   }, [world, isPaused, peakAgentCount, toast]);
 
   useEffect(() => {
-    // On mount, reset with a random seed to avoid hydration errors
-    // and provide a different simulation on each load.
     resetSimulation(Date.now() % 1_000_000);
 
     return () => {
+      if (controllerRef.current) {
+        controllerRef.current.stop();
+      }
       if (hudIntervalRef.current) {
         clearInterval(hudIntervalRef.current);
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetSimulation]);
+  }, []);
 
   useEffect(() => {
     if (!colorCounts) return;
@@ -215,7 +233,7 @@ export function SimulationClient() {
 
   return (
     <div className="relative h-screen w-full bg-gray-900">
-      {world && <Hud {...hudData} />}
+      <Hud {...hudData} />
 
       <Tabs defaultValue="species" className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-1 rounded-lg w-80 z-10 flex flex-col" style={{height: 'calc(100vh - 9rem)'}}>
         <TabsList className="grid w-full grid-cols-2">
@@ -270,7 +288,7 @@ export function SimulationClient() {
       <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
         {/* Left-aligned controls */}
         <div className="flex items-center gap-2">
-          <Button onClick={handleTogglePause} className="w-28">
+          <Button onClick={handleTogglePause} className="w-28" disabled={isStopped}>
             {isPaused ? (
               <Play className="mr-2 h-4 w-4" />
             ) : (
@@ -278,10 +296,10 @@ export function SimulationClient() {
             )}
             {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
           </Button>
-          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward">
+          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused || isStopped} title="Step Forward">
             <StepForward className="h-4 w-4" />
           </Button>
-          <Button onClick={() => resetSimulation(seed)} variant="outline">
+          <Button onClick={handleStop} variant="outline" disabled={isStopped}>
             <Square className="mr-2 h-4 w-4" />
             Stop
           </Button>
@@ -297,7 +315,7 @@ export function SimulationClient() {
               value={seed}
               onChange={(e) => setSeedValue(Number(e.target.value) || 0)}
               className="w-24 bg-gray-800 border-gray-700"
-              disabled={!isPaused}
+              disabled={!isPaused || isStopped}
             />
           </div>
         </div>

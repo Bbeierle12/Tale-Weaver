@@ -10,6 +10,7 @@ export class SimController {
   private last = 0;
   private readonly world: World;
   private readonly renderer: Renderer;
+  private animationFrameId: number | null = null;
 
   private _paused = false;
   private _stepOnce = false;
@@ -37,16 +38,25 @@ export class SimController {
 
   /** Kick‑off RAF loop */
   start(): void {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || this.animationFrameId) {
       return;
     }
     this.last = performance.now();
-    requestAnimationFrame(this.loop);
+    this.animationFrameId = requestAnimationFrame(this.loop);
+  }
+
+  /** Stop RAF loop */
+  stop(): void {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
   }
 
   // ————————————————————————————————— private —————————————————————————————————
 
   private loop = (now: number) => {
+    if (!this.animationFrameId) return; // a double check to ensure it's stopped
     const dt = (now - this.last) / 1000;
     this.last = now;
 
@@ -57,6 +67,6 @@ export class SimController {
       this.renderer.draw();
     }
 
-    requestAnimationFrame(this.loop);
+    this.animationFrameId = requestAnimationFrame(this.loop);
   };
 }
