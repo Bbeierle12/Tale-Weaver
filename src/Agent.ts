@@ -60,10 +60,9 @@ export class Agent {
     this.move(dir, world)
 
     // Forage
-    // Correctly calculate bite size in food units and convert eaten units back to energy.
-    const biteInFoodUnits = SIM_CONFIG.biteEnergy / SIM_CONFIG.foodValue;
-    const eatenUnits = world.eatAt(this.x, this.y, biteInFoodUnits);
-    const energyGained = eatenUnits * SIM_CONFIG.foodValue;
+    // In this model, `biteEnergy` is treated as the amount of food units to consume,
+    // and the energy gained is equivalent to the food units eaten.
+    const energyGained = world.eatAt(this.x, this.y, SIM_CONFIG.biteEnergy);
 
     if (energyGained > 0) {
       this.energy += energyGained

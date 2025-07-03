@@ -41,13 +41,13 @@ export class World {
   // ───────── utilities
   public idx (x: number, y: number): number { return y * this.width + x }
 
-  public eatAt (x: number, y: number, biteInFoodUnits: number): number {
+  public eatAt (x: number, y: number, biteAmount: number): number {
     const i = this.idx(x, y);
-    const takenUnits = Math.min(biteInFoodUnits, this.food[i]);
-    if (takenUnits > 0) {
-        this.food[i] -= takenUnits;
+    const taken = Math.min(biteAmount, this.food[i]);
+    if (taken > 0) {
+        this.food[i] -= taken;
     }
-    return takenUnits;
+    return taken;
   }
 
   public recordForage (tick: number, a: Agent, e: number): void {
