@@ -38,19 +38,22 @@ export class World {
     this.width = width;
     this.height = height;
     this.food = new Float32Array(width * height);
-    this.food.fill(SIM_CONFIG.foodValue);
+    this.food.fill(0.5); // init food per tile
     // Initialize forageLog with empty objects to avoid resizing
     this.forageLog = new Array(SIM_CONFIG.forageBuf).fill(null).map(() => ({ tick: 0, id: 0, x: 0, y: 0, e: 0 }));
   }
 
   // ───────── utilities
-  public idx (x: number, y: number): number { return y * this.width + x }
+  private idx (x: number, y: number): number { return (y | 0) * this.width + (x | 0) }
 
-  public eatAt (x: number, y: number, biteAmount: number): number {
-    const i = this.idx(x, y);
-    const taken = Math.min(biteAmount, this.food[i]);
-    this.food[i] -= taken;
-    return taken;
+  public consumeFood(tx: number, ty: number, units: number): number {
+    const i = this.idx(tx, ty);
+    const available = this.food[i];
+    const eaten = Math.min(available, units);
+    if (eaten > 0) {
+      this.food[i] -= eaten;
+    }
+    return eaten;
   }
 
   public recordForage (tick: number, a: Agent, e: number): void {
@@ -73,6 +76,14 @@ export class World {
     this.deaths++;
   }
 
+  private regrow(): void {
+    const add = SIM_CONFIG.growthRate;
+    for (let n = 0; n < 400; n++) {
+      const i = Math.floor(rng() * this.food.length);
+      this.food[i] = Math.min(SIM_CONFIG.foodValue, this.food[i] + add);
+    }
+  }
+
   // ───────── main update
   public step (): void {
     this.tickCount++;
@@ -80,11 +91,7 @@ export class World {
     this.deaths = 0;
 
     // Food regrowth
-    for (let i = 0; i < this.food.length; i++) {
-        if (this.food[i] < SIM_CONFIG.foodValue) {
-            this.food[i] = Math.min(SIM_CONFIG.foodValue, this.food[i] + SIM_CONFIG.growthRate)
-        }
-    }
+    this.regrow();
 
     // Tick agents
     const nextAgents: Agent[] = [];

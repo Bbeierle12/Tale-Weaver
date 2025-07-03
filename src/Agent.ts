@@ -65,14 +65,7 @@ export class Agent {
     this.move(dir, world)
 
     // Forage
-    const energyGained = world.eatAt(this.x, this.y, SIM_CONFIG.biteEnergy);
-
-    if (energyGained > 0) {
-      this.energy += energyGained
-      this.foodConsumed += energyGained
-      this.foundFood = true;
-      world.recordForage(world.tickCount, this, energyGained)
-    }
+    this.eat(world);
 
     // Reproduction
     if (this.energy >= SIM_CONFIG.birthThreshold) {
@@ -102,6 +95,20 @@ export class Agent {
     this.energy -= SIM_CONFIG.moveCostPerStep
     world.moveDebit += SIM_CONFIG.moveCostPerStep
   }
+  
+  /** Called once per tick after move */
+  private eat(world: World) {
+    const foodUnits = SIM_CONFIG.biteEnergy / SIM_CONFIG.foodValue;
+    const eaten = world.consumeFood(this.x, this.y, foodUnits);
+    if (eaten > 0) {
+      const gained = eaten * SIM_CONFIG.foodValue;
+      this.energy += gained;
+      this.foodConsumed += gained;
+      world.recordForage(world.tickCount, this, gained);
+      this.foundFood = true;
+    }
+  }
+
 
   /** World calls this after it has harvested the counters. */
   public resetTickMetrics(): void {
