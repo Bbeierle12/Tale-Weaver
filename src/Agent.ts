@@ -1,9 +1,11 @@
-// --- src/Agent.ts ---
 import { World } from './world';
 import { rng } from '@/utils/random';
 import { mapLinear, mutateGenome, randomGenome } from '@/utils/genetics';
 
+let nextAgentId = 0;
+
 export class Agent {
+  public readonly id: number;
   public x: number;
   public y: number;
   public energy: number;
@@ -22,6 +24,7 @@ export class Agent {
   public turningSpeed!: number;
 
   constructor(x = 0, y = 0, energy = 10, genome?: Float32Array) {
+    this.id = nextAgentId++;
     this.x = x;
     this.y = y;
     this.energy = energy;
@@ -111,7 +114,10 @@ export class Agent {
     const tx = this.x | 0;
     const ty = this.y | 0;
     const eaten = world.consumeFood(tx, ty, this.foodConsumptionAmount);
-    this.energy += eaten * 10.0; // food energy value is 10
+    if (eaten > 0) {
+      this.energy += eaten * 10.0; // food energy value is 10
+      world.recordMove(world.tick, this.id, tx, ty, eaten);
+    }
 
     // Reproduction
     let newborn: Agent | null = null;

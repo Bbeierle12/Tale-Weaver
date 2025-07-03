@@ -1,4 +1,5 @@
 import { Agent } from './Agent';
+import type { MoveSample } from './metrics';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
 import { RunningStats, calculateGini } from './utils/stats';
@@ -16,6 +17,11 @@ export class World {
   public deathsThisTick = 0;
   public birthsThisTick = 0;
 
+  // Spatial telemetry
+  private static readonly MOVE_LOG_CAP = 32_768;
+  private moveLog: MoveSample[] = new Array<MoveSample>(World.MOVE_LOG_CAP);
+  private movePtr = 0;
+
   public readonly growthRate: number = 0.15; // food regrowth per second (per regrowth event)
   private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
 
@@ -29,6 +35,16 @@ export class World {
       Array.from({ length: width }, () => 0.5)
     );
     this._totalFood = 0.5 * width * height;
+  }
+
+  public recordMove(tick: number, id: number, x: number, y: number, food: number) {
+    this.moveLog[this.movePtr++] = { tick, id, x, y, food };
+    if (this.movePtr === World.MOVE_LOG_CAP) this.movePtr = 0; // overwrite oldest
+  }
+
+  // expose snapshot for analysis or CSV dump
+  public getMoveLog(): readonly MoveSample[] {
+    return this.moveLog.slice(0, this.movePtr);
   }
 
   public spawnAgent(
