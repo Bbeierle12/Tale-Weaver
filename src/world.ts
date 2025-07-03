@@ -3,7 +3,7 @@ import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
 import { RunningStats, calculateGini } from './utils/stats';
 import { SIM_CONFIG } from './config';
-import { Histogram } from './utils/hist';
+import { Hist } from './utils/hist';
 
 export class World {
   public width: number;
@@ -20,7 +20,7 @@ export class World {
   private forageBuf: string[] = new Array(SIM_CONFIG.forageBuf);
   private fp = 0;
   private snapshots: string[] = [];
-  private hist = new Histogram(SIM_CONFIG.histBins);
+  private hist = new Hist(SIM_CONFIG.histBins);
   private histRows: string[] = [];
 
   // Data logging for AI analysis (kept for existing features)
@@ -58,9 +58,10 @@ export class World {
     return this.histRows;
   }
 
-  public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array): void {
+  public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array): Agent {
     const agent = new Agent(x, y, energy, genome);
     this.agents.push(agent);
+    return agent;
   }
 
   /** Consume food from the specified tile. Returns the amount of food actually eaten. */
@@ -110,14 +111,15 @@ export class World {
     }
 
     // Histogram
-    this.hist.accumulate(this.agents.map((a) => a.energy));
-    this.histRows.push(this.hist.toCSV(this.tick));
-    this.hist.reset();
-
+    this.agents.forEach(a => this.hist.add(a.energy));
+    
     // Record history for this tick for AI analysis
     if (this.tick > 0) {
       this.logTickStats();
     }
+    
+    this.histRows.push(`${this.tick},${this.hist.toArray().join(',')}`);
+    this.hist.reset();
   }
 
   /** Calculates all stats for the current tick and logs them to history. */
@@ -164,7 +166,7 @@ export class World {
       energySD: hasAgents ? energyStats.sd : 0,
       minEnergy: hasAgents ? energyStats.min : 0,
       maxEnergy: hasAgents ? energyStats.max : 0,
-      energyHistogram: this.tick % 50 === 0 ? this.hist.toCSV(this.tick).split(',').slice(1).map(Number) : undefined,
+      energyHistogram: this.tick % 50 === 0 ? this.hist.toArray() : undefined,
       avgTileFood: tileFoodStats.avg,
       avgTileFoodSD: tileFoodStats.sd,
       minTileFood: tileFoodStats.min,

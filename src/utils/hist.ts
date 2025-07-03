@@ -1,24 +1,19 @@
-export class Histogram {
-  private bins: number[];
-  private readonly nb: number;
-  constructor(nb: number) {
-    this.nb = nb;
-    this.bins = new Array(nb).fill(0);
+// ────────────────────────────────────────────────────────────────
+// --- src/utils/hist.ts -----------------------------------------
+// Lightweight fixed‑width histogram helper
+// ────────────────────────────────────────────────────────────────
+export class Hist {
+  private readonly bins: Uint32Array
+  private readonly binW: number
+  constructor (binCount: number, private readonly min = 0, private readonly max = 40) {
+    this.bins = new Uint32Array(binCount)
+    this.binW = (max - min) / binCount
   }
-  accumulate(values: number[]) {
-    if (values.length === 0) return;
-    const min = Math.min(...values),
-      max = Math.max(...values);
-    const w = (max - min + 1e-6) / this.nb;
-    values.forEach((v) => {
-      const idx = Math.min(this.nb - 1, Math.floor((v - min) / w));
-      this.bins[idx]++;
-    });
+  reset (): void { this.bins.fill(0) }
+  add (v: number): void {
+    const idx = Math.min(this.bins.length - 1,
+      Math.max(0, Math.floor((v - this.min) / this.binW)))
+    this.bins[idx]++
   }
-  toCSV(tick: number) {
-    return tick + ',' + this.bins.join(',');
-  }
-  reset() {
-    this.bins.fill(0);
-  }
+  toArray (): number[] { return Array.from(this.bins, n => Number(n)) }
 }
