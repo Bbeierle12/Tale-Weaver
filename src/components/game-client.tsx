@@ -6,13 +6,14 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Square, Bot, Download } from 'lucide-react';
-import { AnalysisDialog } from './analysis-dialog';
-import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
+import { Pause, Play, RotateCcw, Square, Download, MessageSquare, BrainCircuit } from 'lucide-react';
+import { generateSpeciesNameAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChatView } from './chat-view';
 
 const INITIAL_AGENT_COUNT = 50;
 const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
@@ -38,9 +39,6 @@ export function SimulationClient() {
     avgEnergy: 0,
   });
 
-  const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
   const [colorCounts, setColorCounts] = useState(new Map<string, number>());
@@ -68,9 +66,6 @@ export function SimulationClient() {
     }
     setWorld(newWorld);
     setPeakAgentCount(INITIAL_AGENT_COUNT);
-    setAnalysisResult(null);
-    setIsAnalyzing(false);
-    setIsAnalysisDialogOpen(false);
     setColorCounts(new Map());
     setSpeciesNames(new Map());
     setPendingNameRequests(new Set());
@@ -118,34 +113,6 @@ export function SimulationClient() {
     controllerRef.current?.togglePause();
     setIsPaused((p) => !p);
   }, []);
-
-  const handleAnalyze = useCallback(async () => {
-    if (!world) return;
-    setIsAnalyzing(true);
-    setAnalysisResult(null);
-    setIsAnalysisDialogOpen(true);
-
-    try {
-      const result = await analyzeSimulationAction({
-        ticks: world.tick,
-        peakAgentCount: peakAgentCount,
-        initialAgentCount: INITIAL_AGENT_COUNT,
-        initialFoodPerTile: INITIAL_FOOD_PER_TILE,
-        simulationHistory: world.history,
-      });
-      setAnalysisResult(result.analysis);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'An unknown error occurred.';
-      toast({
-        variant: 'destructive',
-        title: 'Analysis Failed',
-        description: message,
-      });
-      setIsAnalysisDialogOpen(false);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  }, [world, peakAgentCount, toast]);
 
   const handleDownloadLog = useCallback(() => {
     if (!world || world.history.length === 0) {
@@ -229,36 +196,54 @@ export function SimulationClient() {
     <div className="relative h-screen w-full bg-gray-900">
       {world && <Hud {...hudData} />}
 
-      <div className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-3 rounded-lg max-h-[calc(100vh-10rem)] w-64 overflow-y-auto font-mono text-sm text-white z-10">
-        <h3 className="font-bold mb-2 text-base">Species on Board</h3>
-        {colorCounts.size === 0 && <p className="text-xs text-gray-400">No agents yet.</p>}
-        <ul className="space-y-2">
-          {Array.from(colorCounts.entries())
-            .sort(([, a], [, b]) => b - a)
-            .map(([color, count]) => {
-              const speciesInfo = speciesNames.get(color);
-              return (
-              <li key={color} className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2 pt-1">
-                  <div className="w-4 h-4 shrink-0 rounded-full border border-white/20" style={{ backgroundColor: color }} />
-                  <div className="flex-1 text-xs">
-                    {speciesInfo ? (
-                      <>
-                        <span className="font-bold italic display-block">{speciesInfo.genus} {speciesInfo.species}</span>
-                        <span className="text-gray-400 block">{color}</span>
-                      </>
-                    ) : pendingNameRequests.has(color) ? (
-                      <span className="text-gray-400">naming...</span>
-                    ) : (
-                      <span>{color}</span>
-                    )}
+      <Tabs defaultValue="species" className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-1 rounded-lg w-80 z-10 flex flex-col" style={{height: 'calc(100vh - 9rem)'}}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="species"><BrainCircuit className="mr-2"/>Species</TabsTrigger>
+          <TabsTrigger value="chat"><MessageSquare className="mr-2"/>Chat</TabsTrigger>
+        </TabsList>
+        <TabsContent value="species" className="flex-1 overflow-y-auto mt-2 pr-1 font-mono text-white text-sm">
+          <h3 className="font-bold mb-2 text-base px-2">Species on Board</h3>
+          {colorCounts.size === 0 && <p className="text-xs text-gray-400 px-2">No agents yet.</p>}
+          <ul className="space-y-2">
+            {Array.from(colorCounts.entries())
+              .sort(([, a], [, b]) => b - a)
+              .map(([color, count]) => {
+                const speciesInfo = speciesNames.get(color);
+                return (
+                <li key={color} className="flex items-start justify-between gap-3 px-2">
+                  <div className="flex items-start gap-2 pt-1">
+                    <div className="w-4 h-4 shrink-0 rounded-full border border-white/20" style={{ backgroundColor: color }} />
+                    <div className="flex-1 text-xs">
+                      {speciesInfo ? (
+                        <>
+                          <span className="font-bold italic display-block">{speciesInfo.genus} {speciesInfo.species}</span>
+                          <span className="text-gray-400 block">{color}</span>
+                        </>
+                      ) : pendingNameRequests.has(color) ? (
+                        <span className="text-gray-400">naming...</span>
+                      ) : (
+                        <span>{color}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <span className="font-bold text-base">{count}</span>
-              </li>
-            )})}
-        </ul>
-      </div>
+                  <span className="font-bold text-base">{count}</span>
+                </li>
+              )})}
+          </ul>
+        </TabsContent>
+        <TabsContent value="chat" className="flex-1 mt-0 -mx-1 -mb-1">
+           <ChatView 
+            isPaused={isPaused}
+            simulationData={{
+              ticks: hudData.tick,
+              peakAgentCount: peakAgentCount,
+              initialAgentCount: INITIAL_AGENT_COUNT,
+              initialFoodPerTile: INITIAL_FOOD_PER_TILE,
+              simulationHistory: world?.history ?? [],
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       <canvas ref={canvasRef} className="h-full w-full" />
       <div className="absolute bottom-4 left-4 flex items-center gap-2">
@@ -278,10 +263,6 @@ export function SimulationClient() {
           <RotateCcw className="mr-2 h-4 w-4" />
           Reset
         </Button>
-        <Button onClick={handleAnalyze} variant="outline" disabled={!isPaused || isAnalyzing}>
-          <Bot className="mr-2 h-4 w-4" />
-          {isAnalyzing ? 'Analyzing...' : 'Analyze'}
-        </Button>
         <Button onClick={handleDownloadLog} variant="outline" disabled={!isPaused || hudData.tick === 0}>
             <Download className="mr-2 h-4 w-4" />
             Download Log
@@ -298,12 +279,6 @@ export function SimulationClient() {
           />
         </div>
       </div>
-      <AnalysisDialog
-        open={isAnalysisDialogOpen}
-        onOpenChange={setIsAnalysisDialogOpen}
-        analysis={analysisResult}
-        isLoading={isAnalyzing}
-      />
     </div>
   );
 }

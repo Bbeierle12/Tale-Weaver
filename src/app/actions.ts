@@ -4,9 +4,12 @@ import { analyzeSimulation } from '@/ai/flows/generate-world-narration';
 import type {
   SimulationAnalysisInput,
   SimulationAnalysisOutput,
+  SimulationChatInput,
+  SimulationChatOutput,
 } from '@/ai/schemas';
 import { generateSpeciesName } from '@/ai/flows/generate-species-name';
 import type { SpeciesNameInput, SpeciesNameOutput } from '@/ai/schemas';
+import { chatAboutSimulation } from '@/ai/flows/simulation-chat-flow';
 
 export async function analyzeSimulationAction(
   input: SimulationAnalysisInput
@@ -41,5 +44,24 @@ export async function generateSpeciesNameAction(
     console.error('Error running species name generation:', error);
     // Return a placeholder on error to prevent crashes
     return { genus: 'Errorus', species: 'incognita' };
+  }
+}
+
+export async function chatAboutSimulationAction(
+  input: SimulationChatInput
+): Promise<SimulationChatOutput> {
+  try {
+    const result = await chatAboutSimulation(input);
+    if (!result?.response) {
+      return {
+        response: 'The AI returned an empty response. Please try again.',
+      };
+    }
+    return result;
+  } catch (error) {
+    console.error('Error running simulation chat:', error);
+    return {
+      response: `## Chat Failed\n\nAn error occurred while generating the response: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
   }
 }

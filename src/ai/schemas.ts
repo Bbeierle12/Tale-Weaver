@@ -77,3 +77,26 @@ export const SpeciesNameOutputSchema = z.object({
   species: z.string().describe('The generated species name (epithet).'),
 });
 export type SpeciesNameOutput = z.infer<typeof SpeciesNameOutputSchema>;
+
+
+// Schemas for Simulation Chat
+export const MessageSchema = z.object({
+  role: z.enum(['user', 'model']),
+  content: z.string(),
+});
+export type Message = z.infer<typeof MessageSchema>;
+
+export const SimulationChatInputSchema = SimulationAnalysisInputSchema.extend({
+  messages: z.array(MessageSchema).describe('The history of the conversation so far.'),
+});
+export type SimulationChatInput = z.infer<typeof SimulationChatInputSchema>;
+
+
+export const SimulationChatOutputSchema = z.object({
+  response: z
+    .string()
+    .describe(
+      "The AI assistant's response to the user."
+    ),
+});
+export type SimulationChatOutput = z.infer<typeof SimulationChatOutputSchema>;
