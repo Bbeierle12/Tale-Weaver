@@ -2,6 +2,9 @@
 import { randomGenome, mapLinear, mutateGenome } from './utils/genetics'
 import type { World } from './world'
 
+const FOOD_ENERGY_VALUE = 10;
+const CONSUMPTION_AMOUNT = 0.05; // per second
+
 /**
  * Agent (v0.2) — now with a digital genome.
  * Each instance owns a Float32Array<16> that linearly encodes key traits.
@@ -10,6 +13,7 @@ export class Agent {
   x: number
   y: number
   energy = 10
+  dir = Math.random() * Math.PI * 2; // facing (rad)
   readonly genome: Float32Array
   private readonly world: World
 
@@ -50,25 +54,52 @@ export class Agent {
   // ---------- UPDATE LOOP ----------
 
   update (dt: number): void {
-    // Existing per‑tick movement, collisions, food collection, etc.
-    this.randomWalk(dt)
+    // 1. Find best food in vision
+    let bestX = -1, bestY = -1, bestFood = 0;
+    const r = this.vision | 0;
+    const searchRadiusSq = r * r;
 
-    // Metabolic drain
+    for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+            if (dx * dx + dy * dy > searchRadiusSq) continue;
+            const tx = (this.x + dx) | 0;
+            const ty = (this.y + dy) | 0;
+            if (tx < 0 || tx >= this.world.width || ty < 0 || ty >= this.world.height) continue;
+            
+            const food = this.world.tiles[ty][tx];
+            if (food > bestFood) {
+                bestFood = food;
+                bestX = tx;
+                bestY = ty;
+            }
+        }
+    }
+    
+    // 2. Move
+    if (bestFood > 0) {
+        this.dir = Math.atan2(bestY - this.y, bestX - this.x);
+    } else {
+        // random walk if no food found
+        this.dir += (Math.random() - 0.5) * 0.5;
+    }
+
+    this.x += Math.cos(this.dir) * this.speed * dt;
+    this.y += Math.sin(this.dir) * this.speed * dt;
+    this.world.clampPosition(this);
+    this.energy -= this.speed * 0.01 * dt; // Movement energy cost
+
+    // 3. Consume food
+    const tx = this.x | 0;
+    const ty = this.y | 0;
+    const eaten = this.world.consumeTileFood(tx, ty, CONSUMPTION_AMOUNT * dt);
+    this.energy += eaten * FOOD_ENERGY_VALUE;
+
+    // 4. Metabolic drain
     this.energy -= this.metabolicCost * dt
     if (this.energy <= 0) this.world.kill(this)
 
-    // Reproduction check
+    // 5. Reproduction check
     this.reproduce()
-  }
-
-  private randomWalk (dt: number): void {
-    // Simplified placeholder – existing logic likely more complex
-    const angle = Math.random() * Math.PI * 2
-    this.x += Math.cos(angle) * this.speed * dt
-    this.y += Math.sin(angle) * this.speed * dt
-    this.world.clampPosition(this)
-    // Movement energy drain (unchanged)
-    this.energy -= this.speed * 0.01 * dt
   }
 
   // ---------- ASEXUAL REPRODUCTION ----------

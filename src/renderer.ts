@@ -44,8 +44,8 @@ export class Renderer {
     });
 
     // drag – pan
-    let dragging = false, lastX = 0, lastY = 0;
-    canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+    let dragging = false;
+    canvas.addEventListener('mousedown', () => { dragging = true; });
     window.addEventListener('mouseup',   () => dragging = false);
     window.addEventListener('mousemove', e => {
       if (!dragging) return;
@@ -69,7 +69,31 @@ export class Renderer {
     this.camX = Math.max(0, Math.min(world.width  * this.zoom - cw, this.camX));
     this.camY = Math.max(0, Math.min(world.height * this.zoom - ch, this.camY));
 
-    // draw agents (simple circles)
+    // determine visible tiles
+    const x0 = (this.camX / this.zoom) | 0;
+    const y0 = (this.camY / this.zoom) | 0;
+    const cols = Math.ceil(cw / this.zoom) + 1;
+    const rows = Math.ceil(ch / this.zoom) + 1;
+
+    // draw terrain (food density)
+    for (let y = 0; y < rows; y++) {
+      const ty = y0 + y;
+      if (ty >= world.height) break;
+      for (let x = 0; x < cols; x++) {
+        const tx = x0 + x;
+        if (tx >= world.width) break;
+        const food = world.tiles[ty][tx];
+        if (food <= 0.01) continue;
+        ctx.fillStyle = `rgba(34,197,94,${food * 0.75})`;
+        ctx.fillRect(
+          (tx * this.zoom) - this.camX,
+          (ty * this.zoom) - this.camY,
+          this.zoom, this.zoom
+        );
+      }
+    }
+
+    // draw agents (colored by speed)
     for (const a of world.agents) {
       ctx.fillStyle = speedToColor(a.speed);
       const sx = a.x * this.zoom - this.camX;
