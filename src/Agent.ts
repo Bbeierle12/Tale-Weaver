@@ -1,5 +1,6 @@
 // --- src/Agent.ts ---
 import { World } from './world';
+import { rng } from '@/utils/random';
 
 export class Agent {
   public x: number;
@@ -23,7 +24,7 @@ export class Agent {
     if (this.dead) return;  // skip update if already dead
 
     // Random-walk movement: small step in a random direction
-    const angle = Math.random() * 2 * Math.PI;
+    const angle = rng() * 2 * Math.PI;
     const step = Agent.MOVE_SPEED * dt;
     this.x += Math.cos(angle) * step;
     this.y += Math.sin(angle) * step;

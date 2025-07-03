@@ -4,8 +4,12 @@
  */
 
 import { World } from '../world';
+import { setSeed } from '../utils/random';
 
 describe('World resource simulation', () => {
+  beforeEach(() => {
+    setSeed(1);
+  });
 
   it('regrows food over time', () => {
     const world = new World();
@@ -19,7 +23,7 @@ describe('World resource simulation', () => {
     // Simulate 1 second of growth
     world.update(1);
 
-    // Check if food has grown. The exact value is probabilistic.
+    // Check if food has grown. The exact value is now deterministic.
     expect(world.avgTileFood).toBeGreaterThan(0);
   });
 

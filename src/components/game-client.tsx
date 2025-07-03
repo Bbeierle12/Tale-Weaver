@@ -10,6 +10,9 @@ import { Pause, Play, RotateCcw, Square, Bot } from 'lucide-react';
 import { AnalysisDialog } from './analysis-dialog';
 import { analyzeSimulationAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
+import { rng, setSeed } from '@/utils/random';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const INITIAL_AGENT_COUNT = 300;
 const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
@@ -34,6 +37,7 @@ export function SimulationClient() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [peakAgentCount, setPeakAgentCount] = useState(0);
+  const [seed, setSeedValue] = useState(1);
 
   const resetSimulation = useCallback(() => {
     const canvas = canvasRef.current;
@@ -42,12 +46,14 @@ export function SimulationClient() {
     if (hudIntervalRef.current) {
       clearInterval(hudIntervalRef.current);
     }
+    
+    setSeed(seed);
 
     const newWorld = new World();
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
       newWorld.spawnAgent(
-        Math.random() * newWorld.width,
-        Math.random() * newWorld.height
+        rng() * newWorld.width,
+        rng() * newWorld.height
       );
     }
     setWorld(newWorld);
@@ -86,7 +92,7 @@ export function SimulationClient() {
       });
       setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
     }, 400);
-  }, []);
+  }, [seed]);
 
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
@@ -143,7 +149,8 @@ export function SimulationClient() {
         clearInterval(hudIntervalRef.current);
       }
     };
-  }, [resetSimulation, handleTogglePause]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="relative h-screen w-full bg-gray-900">
@@ -158,11 +165,11 @@ export function SimulationClient() {
           )}
           {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
         </Button>
-        <Button onClick={resetSimulation} variant="outline">
+        <Button onClick={() => resetSimulation()} variant="outline">
           <Square className="mr-2 h-4 w-4" />
           Stop
         </Button>
-        <Button onClick={resetSimulation} variant="outline">
+        <Button onClick={() => resetSimulation()} variant="outline">
           <RotateCcw className="mr-2 h-4 w-4" />
           Reset
         </Button>
@@ -170,6 +177,17 @@ export function SimulationClient() {
           <Bot className="mr-2 h-4 w-4" />
           {isAnalyzing ? 'Analyzing...' : 'Analyze'}
         </Button>
+        <div className="flex items-center gap-2 pl-4">
+          <Label htmlFor="seed-input" className="text-white font-mono text-sm">Seed</Label>
+          <Input
+            id="seed-input"
+            type="number"
+            value={seed}
+            onChange={(e) => setSeedValue(Number(e.target.value) || 0)}
+            className="w-24 bg-gray-800 border-gray-700"
+            disabled={!isPaused}
+          />
+        </div>
       </div>
       <AnalysisDialog
         open={isAnalysisDialogOpen}

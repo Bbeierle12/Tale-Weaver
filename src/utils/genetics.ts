@@ -6,12 +6,14 @@
  * • Point‑mutation helper
  */
 
+import { rng } from './random';
+
 export const GENOME_LENGTH = 16
 
 /** Generate a random genome (Float32Array length = 16, 0 … 1) */
 export function randomGenome (): Float32Array {
   const g = new Float32Array(GENOME_LENGTH)
-  for (let i = 0; i < GENOME_LENGTH; i++) g[i] = Math.random()
+  for (let i = 0; i < GENOME_LENGTH; i++) g[i] = rng()
   return g
 }
 
@@ -30,6 +32,6 @@ export function mutateGenome (
   p = 0.01
 ): void {
   for (let i = 0; i < genome.length; i++) {
-    if (Math.random() < p) genome[i] = Math.random()
+    if (rng() < p) genome[i] = rng()
   }
 }

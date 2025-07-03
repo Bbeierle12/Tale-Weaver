@@ -1,5 +1,6 @@
 import { Agent } from './Agent';
 import type { TickStats } from './ai/schemas';
+import { rng } from './utils/random';
 
 export class World {
   public width: number;
@@ -156,8 +157,8 @@ export class World {
     const events = Math.round(this.growthCount * dt);
     const increase = this.growthRate * dt;
     for (let i = 0; i < events; i++) {
-      const x = Math.floor(Math.random() * this.width);
-      const y = Math.floor(Math.random() * this.height);
+      const x = Math.floor(rng() * this.width);
+      const y = Math.floor(rng() * this.height);
       const current = this.tiles[y][x];
       if (current < 1) {
         let newValue = current + increase;

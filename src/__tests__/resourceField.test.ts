@@ -1,9 +1,11 @@
 // Jest tests for resource field regrowth, consumption, and metrics
 import { World } from '../world';
 import { Agent } from '../Agent';
+import { setSeed } from '../utils/random';
 
 describe('Resource Field', () => {
   it('F2: Regrowth adds food to tiles over time', () => {
+    setSeed(1);
     // Create a small world (1x1) for deterministic regrow
     const world = new World(1, 1);
     // Start with no food in the tile
@@ -12,11 +14,13 @@ describe('Resource Field', () => {
     // Simulate 1 second of world update (regrow)
     world.update(1); // calls regrow internally
     const foodLevel = world.tiles[0][0];
-    // The exact growth is probabilistic due to rounding `events`, so we check a range.
-    expect(foodLevel).toBeGreaterThan(0);
+    // The tile is hit 400 times. Each time it grows by 0.15 (since dt=1), capped at 1.
+    // So after a few hits it will be 1.
+    expect(foodLevel).toBe(1);
   });
 
   it('F3: Consumption reduces tile food and returns eaten amount', () => {
+    setSeed(1);
     const world = new World(1, 1);
     world.tiles[0][0] = 0.5;
     (world as any)._totalFood = 0.5;
@@ -28,6 +32,7 @@ describe('Resource Field', () => {
   });
 
   it('F5: HUD metrics (average food and energy) are computed correctly', () => {
+    setSeed(1);
     const world = new World(2, 2);
     // Manually set tile food levels
     world.tiles = [
