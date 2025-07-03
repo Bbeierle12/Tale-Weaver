@@ -7,6 +7,7 @@ import {z} from 'zod';
 export const SimulationTickSchema = z.object({
   tick: z.number().describe('The simulation tick number.'),
   liveAgents: z.number().describe('The number of agents alive at this tick.'),
+  births: z.number().describe('The number of new agents born this tick.'),
   deaths: z.number().describe('The number of agents that died this tick.'),
   avgEnergy: z.number().describe('The average energy of agents at this tick.'),
   avgTileFood: z.number().describe('The average food per tile at this tick.'),

@@ -12,12 +12,14 @@ export class World {
   public history: {
     tick: number;
     liveAgents: number;
+    births: number;
     deaths: number;
     avgEnergy: number;
     avgTileFood: number;
     avgTileFoodSD: number;
   }[] = [];
-  private deathsThisTick = 0;
+  public deathsThisTick = 0;
+  public birthsThisTick = 0;
 
   public readonly growthRate: number = 0.15; // food regrowth per second (per regrowth event)
   private readonly growthCount: number = 400; // number of random tiles to regrow per second (approx)
@@ -58,6 +60,7 @@ export class World {
   public update(dt: number): void {
     this.tick++;
     this.deathsThisTick = 0;
+    this.birthsThisTick = 0; // Reset for the new tick
     this.regrow(dt);
 
     // Update all agents
@@ -80,6 +83,7 @@ export class World {
       this.history.push({
         tick: this.tick,
         liveAgents: this.agents.length,
+        births: this.birthsThisTick,
         deaths: this.deathsThisTick,
         avgEnergy: this.avgEnergy,
         avgTileFood: this.avgTileFood,

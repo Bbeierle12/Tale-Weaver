@@ -41,7 +41,7 @@ The user provides the following simulation data. This is your only source of inf
 - Food Energy Value: 10.0
 - Food Regrowth Rate: 0.15 / sec across 400 events/sec
 
-**Full Simulation History (Tick, Live Agents, Deaths, Avg Energy, Avg Food, Avg Food SD):**
+**Full Simulation History (Tick, Live Agents, Births, Deaths, Avg Energy, Avg Food, Avg Food SD):**
 \`\`\`json
 {{{json simulationHistory}}}
 \`\`\`
