@@ -6,14 +6,15 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Square, Download, MessageSquare, BrainCircuit } from 'lucide-react';
-import { generateSpeciesNameAction } from '@/app/actions';
+import { Pause, Play, RotateCcw, Square, Download, MessageSquare, BrainCircuit, FileText } from 'lucide-react';
+import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatView } from './chat-view';
+import { AnalysisDialog } from './analysis-dialog';
 
 const INITIAL_AGENT_COUNT = 50;
 const INITIAL_FOOD_PER_TILE = 0.5; // Must match default in world.ts
@@ -45,6 +46,9 @@ export function SimulationClient() {
   const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(new Map());
   const [pendingNameRequests, setPendingNameRequests] = useState<Set<string>>(new Set());
 
+  const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
   const resetSimulation = useCallback((seedToUse: number) => {
     const canvas = canvasRef.current;
@@ -135,6 +139,33 @@ export function SimulationClient() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }, [world, seed, toast]);
+
+  const handleAnalyze = useCallback(async () => {
+    if (!world || !isPaused || world.history.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Not Ready for Analysis',
+        description: 'Please pause the simulation after some data has been generated.',
+      });
+      return;
+    }
+
+    setIsAnalysisDialogOpen(true);
+    setIsAnalysisLoading(true);
+    setAnalysisResult(null);
+
+    const analysisInput = {
+      ticks: world.tick,
+      peakAgentCount,
+      initialAgentCount: INITIAL_AGENT_COUNT,
+      initialFoodPerTile: INITIAL_FOOD_PER_TILE,
+      simulationHistory: world.history,
+    };
+
+    const result = await analyzeSimulationAction(analysisInput);
+    setAnalysisResult(result.analysis);
+    setIsAnalysisLoading(false);
+  }, [world, isPaused, peakAgentCount, toast]);
 
   useEffect(() => {
     // On mount, reset with a random seed to avoid hydration errors
@@ -259,6 +290,10 @@ export function SimulationClient() {
           <RotateCcw className="mr-2 h-4 w-4" />
           Reset
         </Button>
+        <Button onClick={handleAnalyze} variant="outline" disabled={!isPaused || hudData.tick === 0}>
+            <FileText className="mr-2 h-4 w-4" />
+            Analyze
+        </Button>
         <Button onClick={handleDownloadLog} variant="outline" disabled={!isPaused || hudData.tick === 0}>
             <Download className="mr-2 h-4 w-4" />
             Download Log
@@ -275,6 +310,12 @@ export function SimulationClient() {
           />
         </div>
       </div>
+       <AnalysisDialog
+        open={isAnalysisDialogOpen}
+        onOpenChange={setIsAnalysisDialogOpen}
+        analysis={analysisResult}
+        isLoading={isAnalysisLoading}
+      />
     </div>
   );
 }
