@@ -11,7 +11,7 @@ import { Renderer } from '@/renderer';
 
 type HudData = {
   population: number;
-  food: number;
+  avgEnergy: number;
 };
 
 export function SimulationClient() {
@@ -20,7 +20,7 @@ export function SimulationClient() {
   const worldRef = useRef<World | null>(null);
   const [hudData, setHudData] = useState<HudData>({
     population: 0,
-    food: 0,
+    avgEnergy: 0,
   });
   const [isPaused, setIsPaused] = useState(true);
 

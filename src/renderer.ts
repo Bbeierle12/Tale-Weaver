@@ -2,7 +2,7 @@ import type { World } from './world';
 
 type HudData = {
   population: number;
-  food: number;
+  avgEnergy: number;
 };
 type HudStateSetter = (data: HudData) => void;
 
@@ -37,7 +37,10 @@ export class Renderer {
   };
 
   public draw() {
-    this.setHudData(this.world.getStats());
+    this.setHudData({
+        population: this.world.agents.length,
+        avgEnergy: this.world.avgEnergy
+    });
 
     this.ctx.fillStyle = '#1a1a1a';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -48,11 +51,11 @@ export class Renderer {
     this.ctx.translate(-this.camera.x, -this.camera.y);
 
     // Draw food tiles
-    const maxFood = 10;
+    const maxFood = 1; // Food values are now 0-1
     for (let y = 0; y < this.world.height; y++) {
       for (let x = 0; x < this.world.width; x++) {
         const food = this.world.tiles[y][x];
-        if (food > 0.1) {
+        if (food > 0.05) { // Lower threshold for visibility
           const brightness = Math.floor((food / maxFood) * 150) + 20;
           this.ctx.fillStyle = `rgb(0, ${brightness}, 20)`;
           this.ctx.fillRect(x, y, 1, 1);

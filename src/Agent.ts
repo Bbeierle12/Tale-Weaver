@@ -60,8 +60,8 @@ export class Agent {
     this.y = Math.max(0, Math.min(this.world.height - 1, this.y));
 
     // eat if standing on food
-    const food = this.world.consumeFood(this.x | 0, this.y | 0, dt * 5); // consumption rate
-    this.energy += food * 2; // energy gain per food unit
+    const food = this.world.consumeFood(this.x, this.y, dt * 5); // consumption rate
+    this.energy += food * 10; // energy gain per food unit
 
     // reproduce
     if (this.energy > 25) {

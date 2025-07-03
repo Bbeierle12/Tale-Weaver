@@ -1,12 +1,14 @@
 import { Agent } from './Agent';
 
-const INITIAL_AGENTS = 50;
-
 export class World {
-  public readonly width = 200;
-  public readonly height = 200;
+  // tile grid – each cell holds food 0‑1
   public tiles: number[][] = [];
+  public readonly width  = 200;
+  public readonly height = 200;
+
+  /** live agent list */
   public agents: Agent[] = [];
+
   public tick = 0;
 
   constructor() {
@@ -14,70 +16,59 @@ export class World {
   }
 
   public reset(): void {
-    this.tick = 0;
-    this.tiles = Array(this.height).fill(0).map(() => Array(this.width).fill(0));
-    // Add some random food patches
-    for (let i = 0; i < 30; i++) {
-        this.addFoodPatch(
-            Math.random() * this.width,
-            Math.random() * this.height,
-            Math.random() * 20 + 10, // radius
-        );
-    }
-
-    this.agents = [];
-    for (let i = 0; i < INITIAL_AGENTS; i++) {
-      this.spawnAgent(Math.random() * this.width, Math.random() * this.height);
-    }
+      this.tick = 0;
+      this.agents = [];
+      // seed food field
+      this.tiles = Array.from({ length: this.height }, () =>
+        Array.from({ length: this.width }, () => Math.random())
+      );
+      // initial population
+      for (let i = 0; i < 300; i++) this.spawnAgent(Math.random() * this.width, Math.random() * this.height);
   }
 
-  private addFoodPatch(x: number, y: number, radius: number) {
-      for(let i = -radius; i <= radius; i++) {
-          for(let j = -radius; j <= radius; j++) {
-              if (i*i + j*j < radius*radius) {
-                  const tx = Math.round(x+i);
-                  const ty = Math.round(y+j);
-                  if (this.inBounds(tx, ty)) {
-                      this.tiles[ty][tx] = Math.min(10, this.tiles[ty][tx] + Math.random() * 2);
-                  }
-              }
-          }
-      }
-  }
-
-  public inBounds(x: number, y: number): boolean {
+  public inBounds(x: number, y: number) {
     return x >= 0 && x < this.width && y >= 0 && y < this.height;
   }
 
-  public consumeFood(x: number, y: number, amount: number): number {
-    if (!this.inBounds(x, y)) return 0;
-    const available = this.tiles[y][x];
-    const consumed = Math.min(available, amount);
-    this.tiles[y][x] -= consumed;
-    return consumed;
+  /** food consumption – returns amount eaten */
+  public consumeFood(x: number, y: number, amount: number) {
+    const ix = x | 0;
+    const iy = y | 0;
+    if (!this.inBounds(ix, iy)) return 0;
+
+    const avail = this.tiles[iy][ix];
+    const eaten = Math.min(avail, amount);
+    this.tiles[iy][ix] -= eaten;
+    return eaten;
   }
 
-  public spawnAgent(x: number, y: number): void {
+  public spawnAgent(x: number, y: number) {
     this.agents.push(new Agent(this, x, y));
   }
 
-  public update(dt: number): void {
-    this.tick++;
+  public update(dt: number) {
+    this.tick += 1;
 
-    // Food regrowth
-    for(let y=0; y<this.height; y++) {
-        for(let x=0; x<this.width; x++) {
-            if(this.tiles[y][x] < 10) {
-                this.tiles[y][x] += dt * 0.1;
-            }
-        }
+    // grow food slowly
+    for (let i = 0; i < 400; i++) {
+      const x = (Math.random() * this.width) | 0;
+      const y = (Math.random() * this.height) | 0;
+      this.tiles[y][x] = Math.min(1, this.tiles[y][x] + 0.002);
     }
 
-    for (const agent of this.agents) {
-      agent.update(dt);
+    // update agents
+    for (const a of this.agents) a.update(dt);
+    
+    // cull the dead
+    for (let i = this.agents.length - 1; i >= 0; i--) {
+      if (this.agents[i].dead) this.agents.splice(i, 1);
     }
+  }
 
-    this.agents = this.agents.filter(a => !a.dead);
+  // metrics for HUD
+  public get avgEnergy() {
+    if (!this.agents.length) return 0;
+    return this.agents.reduce((s, a) => s + a.energy, 0) / this.agents.length;
   }
 
   public getStats() {
