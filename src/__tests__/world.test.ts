@@ -23,7 +23,7 @@ describe('World resource simulation', () => {
   it('allows agents to consume food', () => {
     const world = new World(1, 1);
     world.food[0] = 1.0;
-    const eaten = world.eatAt(0, 0, 0.1);
+    const eaten = world.consumeFood(0, 0, 0.1);
     expect(eaten).toBe(0.1);
     expect(world.food[0]).toBeCloseTo(0.9);
   });
@@ -31,7 +31,7 @@ describe('World resource simulation', () => {
   it('returns less food than requested if unavailable', () => {
     const world = new World(1, 1);
     world.food[0] = 0.05;
-    const eaten = world.eatAt(0, 0, 0.1);
+    const eaten = world.consumeFood(0, 0, 0.1);
     expect(eaten).toBeCloseTo(0.05);
     expect(world.food[0]).toBe(0);
   });
