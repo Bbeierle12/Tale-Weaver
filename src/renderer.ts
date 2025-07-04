@@ -9,8 +9,32 @@ export class Renderer {
   private camX = 0;
   private camY = 0;
   private zoom  = 4;      // pixels per tile
+
+  // input handling state
   private dragging = false;
 
+  // bound event handlers so they can be removed later
+  private readonly onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const prev = this.zoom;
+    this.zoom = Math.max(2, Math.min(16, this.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+    // zoom to cursor
+    const rect = this.canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left);
+    const my = (e.clientY - rect.top);
+    const wx = (mx + this.camX) / prev;
+    const wy = (my + this.camY) / prev;
+    this.camX = wx * this.zoom - mx;
+    this.camY = wy * this.zoom - my;
+  };
+
+  private readonly onMouseDown = () => { this.dragging = true; };
+  private readonly onMouseUp   = () => { this.dragging = false; };
+  private readonly onMouseMove = (e: MouseEvent) => {
+    if (!this.dragging) return;
+    this.camX -= e.movementX;
+    this.camY -= e.movementY;
+  };
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -24,50 +48,26 @@ export class Renderer {
     window.addEventListener('resize', this.resize);
 
     // mouse wheel — zoom
-    this.canvas.addEventListener('wheel', this.handleWheel);
+    this.canvas.addEventListener('wheel', this.onWheel);
 
     // drag – pan
-    this.canvas.addEventListener('mousedown', this.handleMouseDown);
-    window.addEventListener('mouseup',   this.handleMouseUp);
-    window.addEventListener('mousemove', this.handleMouseMove);
+    this.canvas.addEventListener('mousedown', this.onMouseDown);
+    window.addEventListener('mouseup', this.onMouseUp);
+    window.addEventListener('mousemove', this.onMouseMove);
   }
 
-  public dispose() {
+  dispose() {
     window.removeEventListener('resize', this.resize);
-    this.canvas.removeEventListener('wheel', this.handleWheel);
-    this.canvas.removeEventListener('mousedown', this.handleMouseDown);
-    window.removeEventListener('mouseup', this.handleMouseUp);
-    window.removeEventListener('mousemove', this.handleMouseMove);
+    this.canvas.removeEventListener('wheel', this.onWheel);
+    this.canvas.removeEventListener('mousedown', this.onMouseDown);
+    window.removeEventListener('mouseup', this.onMouseUp);
+    window.removeEventListener('mousemove', this.onMouseMove);
   }
 
   private resize = () => {
     this.canvas.width = this.canvas.clientWidth;
     this.canvas.height = this.canvas.clientHeight;
   };
-
-  private handleWheel = (e: WheelEvent) => {
-    e.preventDefault();
-    const prev = this.zoom;
-    this.zoom = Math.max(2, Math.min(16, this.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
-    // zoom to cursor
-    const rect = this.canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left);
-    const my = (e.clientY - rect.top);
-    const wx = (mx + this.camX) / prev;
-    const wy = (my + this.camY) / prev;
-    this.camX = wx * this.zoom - mx;
-    this.camY = wy * this.zoom - my;
-  }
-
-  private handleMouseDown = () => { this.dragging = true; };
-  private handleMouseUp = () => { this.dragging = false; };
-
-  private handleMouseMove = (e: MouseEvent) => {
-    if (!this.dragging) return;
-    this.camX -= e.movementX;
-    this.camY -= e.movementY;
-  };
-
 
   draw() {
     const { ctx, world } = this;
