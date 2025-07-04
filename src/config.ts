@@ -23,6 +23,7 @@ export interface SimConfig {
     basal: number;
   };
   lineageThreshold: number;
+  histogramInterval: number;
 }
 
 export const SIM_CONFIG: SimConfig = {
@@ -45,5 +46,6 @@ export const SIM_CONFIG: SimConfig = {
     vision: 0.01,
     basal: 0.01,
   },
-  lineageThreshold: 0.1,
+  lineageThreshold: 0.05,
+  histogramInterval: 100,
 };

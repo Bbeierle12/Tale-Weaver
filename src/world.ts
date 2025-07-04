@@ -323,7 +323,7 @@ export class World {
         energySD: energyStats.sd,
         minEnergy: energyStats.min,
         maxEnergy: energyStats.max,
-        energyHistogram: this.tickCount % 50 === 0 ? this.energyHist.toArray() : undefined,
+        energyHistogram: this.tickCount % SIM_CONFIG.histogramInterval === 0 ? this.energyHist.toArray() : undefined,
         avgTileFood: foodStats.avg,
         avgTileFoodSD: foodStats.sd,
         minTileFood: foodStats.min,
