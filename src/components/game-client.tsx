@@ -66,12 +66,14 @@ export function SimulationClient() {
       clearInterval(hudIntervalRef.current);
     }
     
-    resetAgentId();
     setSeed(seedToUse);
     setSeedValue(seedToUse);
     // Note: SIM_CONFIG is readonly, but we can pass the rate to the world constructor if needed
     // For now, we'll let the world use its default, but this could be a point of extension.
     // setRegrowthRate(regrowthRateToUse);
+
+    // Reset agent IDs when starting a new world
+    resetAgentId();
 
     const newWorld = new World();
     for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
