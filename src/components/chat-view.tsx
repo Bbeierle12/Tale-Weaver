@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Bot, User, Send, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { summarizeHistory } from '@/utils/history';
 
 interface ChatViewProps {
   simulationData: Omit<SimulationChatInput, 'messages'>;
@@ -24,6 +26,7 @@ export function ChatView({ simulationData, isPaused }: ChatViewProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,8 +56,20 @@ export function ChatView({ simulationData, isPaused }: ChatViewProps) {
     setIsLoading(true);
 
     try {
+      const { history: prunedHistory, truncated } = summarizeHistory(
+        simulationData.simulationHistory
+      );
+
+      if (truncated) {
+        toast({
+          title: 'History Truncated',
+          description: 'Simulation history was downsampled to fit size limits.',
+        });
+      }
+
       const chatInput: SimulationChatInput = {
         ...simulationData,
+        simulationHistory: prunedHistory,
         messages: [...messages, userMessage],
       };
       const result = await chatAboutSimulationAction(chatInput);
