@@ -17,6 +17,7 @@ import { ChatView } from './chat-view';
 import { AnalysisDialog } from './analysis-dialog';
 import { SIM_CONFIG } from '@/config';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { resetAgentId } from '@/Agent';
 
 const INITIAL_AGENT_COUNT = 50;
 
@@ -66,6 +67,7 @@ export function SimulationClient() {
       clearInterval(hudIntervalRef.current);
     }
     
+    resetAgentId();
     setSeed(seedToUse);
     setSeedValue(seedToUse);
     // Note: SIM_CONFIG is readonly, but we can pass the rate to the world constructor if needed

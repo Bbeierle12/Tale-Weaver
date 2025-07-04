@@ -7,6 +7,10 @@ import { rng } from './utils/random';
 
 let NEXT_ID = 0
 
+export function resetAgentId() {
+  NEXT_ID = 0;
+}
+
 export class Agent {
   readonly id = NEXT_ID++
   x: number
