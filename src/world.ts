@@ -22,6 +22,7 @@ export class World {
   public readonly energyHist = new Hist(SIM_CONFIG.histBins);
   public readonly forageLog: { tick: number, id: number, x: number, y: number, e: number }[];
   private foragePtr = 0;
+  private patchMap: Float32Array;
 
   // CSV Buffers / History
   public history: TickStats[] = []; // For AI analysis - object format
@@ -39,6 +40,8 @@ export class World {
     this.height = height;
     this.food = new Float32Array(width * height);
     this.food.fill(0.5); // init food per tile
+    this.patchMap = new Float32Array(width * height);
+    this.generatePatchMap();
     // Initialize forageLog with empty objects to avoid resizing
     this.forageLog = new Array(SIM_CONFIG.forageBuf).fill(null).map(() => ({ tick: 0, id: 0, x: 0, y: 0, e: 0 }));
   }
@@ -76,11 +79,42 @@ export class World {
     this.deaths++;
   }
 
+  private generatePatchMap(): void {
+    const centers: {x: number; y: number;}[] = [];
+    for (let i = 0; i < SIM_CONFIG.hotspotCount; i++) {
+      centers.push({
+        x: Math.floor(rng() * this.width),
+        y: Math.floor(rng() * this.height)
+      });
+    }
+    const sigma = SIM_CONFIG.hotspotRadius;
+    const denom = 2 * sigma * sigma;
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        let val = 0;
+        for (const c of centers) {
+          const dx = x - c.x;
+          const dy = y - c.y;
+          const g = Math.exp(-(dx * dx + dy * dy) / denom);
+          if (g > val) val = g;
+        }
+        this.patchMap[this.idx(x, y)] = val;
+      }
+    }
+  }
+
   private regrow(): void {
-    const add = SIM_CONFIG.growthRate;
+    const rate = SIM_CONFIG.growthRate;
+    const max = SIM_CONFIG.foodValue;
     for (let n = 0; n < 400; n++) {
       const i = Math.floor(rng() * this.food.length);
-      this.food[i] = Math.min(SIM_CONFIG.foodValue, this.food[i] + add);
+      const patch = this.patchMap[i];
+      if (patch <= 0) continue;
+      const current = this.food[i];
+      const growth = rate * patch * (1 - current / max);
+      if (growth > 0) {
+        this.food[i] = Math.min(max, current + growth);
+      }
     }
   }
 
