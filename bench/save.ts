@@ -5,7 +5,7 @@
 import { promises as fs } from 'fs'
 import { gzip } from 'zlib'
 import { promisify } from 'util'
-import type { World } from '../src/World'
+import type { World } from '../src/world'
 
 const gz = promisify(gzip)
 
