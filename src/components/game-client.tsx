@@ -18,6 +18,7 @@ import { AnalysisDialog } from './analysis-dialog';
 import { SIM_CONFIG } from '@/config';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { resetAgentId } from '@/Agent';
+import { summarizeHistory } from '@/utils/history';
 
 const INITIAL_AGENT_COUNT = 50;
 
@@ -222,13 +223,22 @@ export function SimulationClient() {
     setIsAnalysisLoading(true);
     setAnalysisResult(null);
 
+    const { history: prunedHistory, truncated } = summarizeHistory(world.history);
+
+    if (truncated) {
+      toast({
+        title: 'History Truncated',
+        description: 'Simulation history was downsampled to fit size limits.',
+      });
+    }
+
     const analysisInput = {
       ticks: world.tickCount,
       peakAgentCount,
       initialAgentCount: INITIAL_AGENT_COUNT,
       initialFoodPerTile: SIM_CONFIG.foodValue,
       regrowthRate: SIM_CONFIG.growthRate,
-      simulationHistory: world.history,
+      simulationHistory: prunedHistory,
     };
 
     const result = await analyzeSimulationAction(analysisInput);
