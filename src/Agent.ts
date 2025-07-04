@@ -7,7 +7,8 @@ import { rng } from './utils/random';
 
 let NEXT_ID = 0
 
-export function resetAgentId() {
+/** Reset the ID counter for new simulations */
+export function resetAgentId(): void {
   NEXT_ID = 0;
 }
 
