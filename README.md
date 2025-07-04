@@ -53,3 +53,13 @@ Aside from `dev`, `build`, and `start`, the project exposes additional scripts i
 - `stress` – execute stress benchmarks in `bench/stress.ts`.
 
 Consult `package.json` for the full list and details.
+
+## Lineage Fitness Metrics
+
+Running `npm run stress` now produces `lineage.csv` and `lineageFitness.csv` summarising per-lineage statistics. Example analysis:
+
+```bash
+tsx bench/lineageReport.ts --input lineage.csv
+```
+
+See `docs/lineage-fitness.md` for details.
