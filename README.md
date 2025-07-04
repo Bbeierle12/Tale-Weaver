@@ -1,49 +1,55 @@
 # Firebase Studio
 
 This is a NextJS starter in Firebase Studio.
+To get started, take a look at `src/app/page.tsx`.
 
-## Setup
+## Getting Started
 
-Ensure you have **Node.js 18+** installed. Then install dependencies:
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-## Development
-
-Start the development server on port `9002` using Turbopack:
+Run the development server:
 
 ```bash
 npm run dev
 ```
 
-Useful scripts from `package.json`:
-
-- `npm run dev` – launch the Next.js dev server.
-- `npm run genkit:dev` – start the Genkit development runtime.
-- `npm run genkit:watch` – Genkit dev runtime with file watching.
-- `npm run lint` – run the linter.
-- `npm run typecheck` – run TypeScript type checks.
-- `npm run test` – execute unit tests with Jest.
-- `npm run build` – create a production build.
-- `npm run start` – start the built application.
-- `npm run stress` – run the stress benchmark.
+The app is served on port 9002 by default.
 
 ## Building
 
-Create an optimized production build:
+Create a production build with:
 
 ```bash
 npm run build
 ```
 
+Start the built server using:
+
+```bash
+npm run start
+```
+
 ## Testing
 
-Run the Jest test suite:
+Execute the Jest test suite:
 
 ```bash
 npm test
 ```
 
-To explore the codebase, start with `src/app/page.tsx`.
+## Useful npm scripts
+
+Aside from `dev`, `build`, and `start`, the project exposes additional scripts in `package.json`:
+
+- `genkit:dev` – launch Genkit in development mode.
+- `genkit:watch` – start Genkit with watch enabled.
+- `lint` – run ESLint checks.
+- `typecheck` – run the TypeScript compiler without emitting files.
+- `test` – run unit tests.
+- `stress` – execute stress benchmarks in `bench/stress.ts`.
+
+Consult `package.json` for the full list and details.
