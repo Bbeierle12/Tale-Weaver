@@ -15,6 +15,8 @@ export interface SimConfig {
   snapshotInterval: number  // ticks between snapshots
   forageBuf: number         // ring‑buffer length
   metricsInterval: number   // how many ticks between flushing secondary metrics
+  hotspotCount: number      // number of Gaussian growth hotspots
+  hotspotRadius: number     // sigma for hotspot Gaussian
 }
 
 export const SIM_CONFIG: SimConfig = {
@@ -29,5 +31,7 @@ export const SIM_CONFIG: SimConfig = {
   histBins:           10,
   snapshotInterval:   100,
   forageBuf:          20_000,
-  metricsInterval:    1
+  metricsInterval:    1,
+  hotspotCount:       5,
+  hotspotRadius:      20
 };
