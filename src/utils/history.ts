@@ -1,46 +1,39 @@
 import type { TickStats } from '@/ai/schemas';
 
-const MAX_HISTORY_ENTRIES = 2000;
-const HEAD_COUNT = 50; // Keep the first N entries
-const TAIL_COUNT = 50; // Keep the last N entries
-
-interface SummarizeHistoryResult {
-  history: TickStats[];
-  truncated: boolean;
-}
+export const MAX_HISTORY_CHARS = 100_000;
 
 /**
- * Downsamples the simulation history if it exceeds a certain size to prevent
- * hitting AI context window limits. It preserves the beginning and end of the
- * simulation and samples from the middle.
- *
- * @param fullHistory The complete array of simulation tick statistics.
- * @returns An object containing the potentially pruned history and a flag
- *          indicating if truncation occurred.
+ * Downsample the simulation history to fit within a character limit.
+ * The step size doubles until the serialized size is below the limit.
  */
 export function summarizeHistory(
-  fullHistory: TickStats[]
-): SummarizeHistoryResult {
-  if (fullHistory.length <= MAX_HISTORY_ENTRIES) {
-    return { history: fullHistory, truncated: false };
+  history: TickStats[],
+  maxChars: number = MAX_HISTORY_CHARS
+): { history: TickStats[]; truncated: boolean } {
+  if (history.length === 0) return { history, truncated: false };
+
+  let step = 1;
+  let sampled = history;
+  let truncated = false;
+
+  const serialize = (h: TickStats[]) => JSON.stringify(h).length;
+
+  while (serialize(sampled) > maxChars && step < history.length) {
+    step *= 2;
+    sampled = history.filter((_, i) => i % step === 0);
+    if (sampled.length > 0 && history.length > 0 && sampled[sampled.length - 1] !== history[history.length - 1]) {
+      sampled.push(history[history.length - 1]);
+    }
+    truncated = true;
   }
 
-  const head = fullHistory.slice(0, HEAD_COUNT);
-  const tail = fullHistory.slice(-TAIL_COUNT);
-  const middle = fullHistory.slice(HEAD_COUNT, -TAIL_COUNT);
-
-  const middleSampleSize = MAX_HISTORY_ENTRIES - HEAD_COUNT - TAIL_COUNT;
-  const middleSample: TickStats[] = [];
-  const step = Math.max(1, Math.floor(middle.length / middleSampleSize));
-
-  for (let i = 0; i < middle.length; i += step) {
-    if (middleSample.length < middleSampleSize) {
-      middleSample.push(middle[i]);
+  if (serialize(sampled) > maxChars) {
+    truncated = true;
+    // Remove earliest ticks until under the limit
+    while (serialize(sampled) > maxChars && sampled.length > 1) {
+      sampled.shift();
     }
   }
 
-  return {
-    history: [...head, ...middleSample, ...tail],
-    truncated: true,
-  };
+  return { history: sampled, truncated };
 }
