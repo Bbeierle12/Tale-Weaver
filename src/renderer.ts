@@ -9,6 +9,8 @@ export class Renderer {
   private camX = 0;
   private camY = 0;
   private zoom  = 4;      // pixels per tile
+  private dragging = false;
+
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -22,35 +24,50 @@ export class Renderer {
     window.addEventListener('resize', this.resize);
 
     // mouse wheel — zoom
-    canvas.addEventListener('wheel', e => {
-      e.preventDefault();
-      const prev = this.zoom;
-      this.zoom = Math.max(2, Math.min(16, this.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
-      // zoom to cursor
-      const rect = canvas.getBoundingClientRect();
-      const mx = (e.clientX - rect.left);
-      const my = (e.clientY - rect.top);
-      const wx = (mx + this.camX) / prev;
-      const wy = (my + this.camY) / prev;
-      this.camX = wx * this.zoom - mx;
-      this.camY = wy * this.zoom - my;
-    });
+    this.canvas.addEventListener('wheel', this.handleWheel);
 
     // drag – pan
-    let dragging = false;
-    canvas.addEventListener('mousedown', () => { dragging = true; });
-    window.addEventListener('mouseup',   () => dragging = false);
-    window.addEventListener('mousemove', e => {
-      if (!dragging) return;
-      this.camX -= e.movementX;
-      this.camY -= e.movementY;
-    });
+    this.canvas.addEventListener('mousedown', this.handleMouseDown);
+    window.addEventListener('mouseup',   this.handleMouseUp);
+    window.addEventListener('mousemove', this.handleMouseMove);
+  }
+
+  public dispose() {
+    window.removeEventListener('resize', this.resize);
+    this.canvas.removeEventListener('wheel', this.handleWheel);
+    this.canvas.removeEventListener('mousedown', this.handleMouseDown);
+    window.removeEventListener('mouseup', this.handleMouseUp);
+    window.removeEventListener('mousemove', this.handleMouseMove);
   }
 
   private resize = () => {
     this.canvas.width = this.canvas.clientWidth;
     this.canvas.height = this.canvas.clientHeight;
   };
+
+  private handleWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const prev = this.zoom;
+    this.zoom = Math.max(2, Math.min(16, this.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+    // zoom to cursor
+    const rect = this.canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left);
+    const my = (e.clientY - rect.top);
+    const wx = (mx + this.camX) / prev;
+    const wy = (my + this.camY) / prev;
+    this.camX = wx * this.zoom - mx;
+    this.camY = wy * this.zoom - my;
+  }
+
+  private handleMouseDown = () => { this.dragging = true; };
+  private handleMouseUp = () => { this.dragging = false; };
+
+  private handleMouseMove = (e: MouseEvent) => {
+    if (!this.dragging) return;
+    this.camX -= e.movementX;
+    this.camY -= e.movementY;
+  };
+
 
   draw() {
     const { ctx, world } = this;

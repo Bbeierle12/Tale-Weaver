@@ -8,7 +8,7 @@ import type { Renderer } from './renderer';
  */
 export class SimController {
   private readonly world: World;
-  private readonly renderer: Renderer;
+  public readonly renderer: Renderer;
   private animationFrameId: number | null = null;
 
   private _paused = false;

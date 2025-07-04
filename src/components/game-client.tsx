@@ -58,6 +58,9 @@ export function SimulationClient() {
 
     if (controllerRef.current) {
       controllerRef.current.stop();
+      // Clean up renderer event listeners
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (controllerRef.current as any).renderer?.dispose?.();
     }
     if (hudIntervalRef.current) {
       clearInterval(hudIntervalRef.current);
@@ -236,6 +239,9 @@ export function SimulationClient() {
     return () => {
       if (controllerRef.current) {
         controllerRef.current.stop();
+        // Clean up renderer event listeners
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (controllerRef.current as any).renderer?.dispose?.();
       }
       if (hudIntervalRef.current) {
         clearInterval(hudIntervalRef.current);
