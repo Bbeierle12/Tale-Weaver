@@ -24,7 +24,7 @@ const prompt = ai.definePrompt({
   input: {schema: SimulationAnalysisInputSchema},
   output: {schema: SimulationAnalysisOutputSchema},
   config: {
-    maxOutputTokens: 750000,
+    maxOutputTokens: Number(process.env.MAX_OUTPUT_TOKENS ?? 4096),
   },
   prompt: `You are a rigorous, skeptical, and expert systems ecologist. Your task is to analyze the provided agent-based simulation data and produce a concise, data-driven report.
 
