@@ -4,18 +4,7 @@ import { rng } from './utils/random';
 import { RunningStats, calculateGini } from './utils/stats';
 import { SIM_CONFIG } from './config';
 import { Hist } from './utils/hist';
-
-interface LineageStats {
-  id: number;
-  members: number;
-  births: number;
-  deaths: number;
-  speed: RunningStats;
-  vision: RunningStats;
-  basal: RunningStats;
-  energy: RunningStats;
-  founder: Agent;
-}
+import type { LineageMetadata } from './LineageMetrics';
 
 export class World {
   public width: number;
@@ -46,9 +35,9 @@ export class World {
 
   // Lineage properties
   public lineageCounter = 0;
-  private lineages = new Map<number, LineageStats>();
+  private lineages = new Map<number, LineageMetadata>();
   public readonly lineageRows: string[] = ['tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths'];
-  private lineageFitness = new Map<number, number>();
+  public readonly lineageFitnessRows: string[] = ['lineageId,fitness'];
 
   // Scratch buffers to avoid GC
   private stepBuf: number[] = [];
@@ -95,8 +84,10 @@ export class World {
 
   public markDeath (agent: Agent): void {
     this.deaths++;
-    if (this.lineages.has(agent.lineageId)) {
-      this.lineages.get(agent.lineageId)!.deaths++;
+    const meta = this.lineages.get(agent.lineageId);
+    if (meta) {
+      meta.deaths++;
+      meta.deathsTick++;
     }
   }
 
@@ -159,8 +150,10 @@ export class World {
         if (result !== agent) {
           // Yes, a new child was born.
           this.births++;
-          if (this.lineages.has(result.lineageId)) {
-            this.lineages.get(result.lineageId)!.births++;
+          const meta = this.lineages.get(result.lineageId);
+          if (meta) {
+            meta.births++;
+            meta.birthsTick++;
           }
           nextAgents.push(result); // Add the child
         }
@@ -194,42 +187,47 @@ export class World {
 
   // ───────── lineage helpers
   private resetLineageTickStats(): void {
-    for (const ls of this.lineages.values()) {
-      ls.births = 0;
-      ls.deaths = 0;
+    for (const meta of this.lineages.values()) {
+      meta.birthsTick = 0;
+      meta.deathsTick = 0;
     }
   }
 
   private updateLineageStats(): void {
-    // Reset member counts and stats collectors
-    for (const ls of this.lineages.values()) {
-      ls.members = 0;
-      ls.speed.reset();
-      ls.vision.reset();
-      ls.basal.reset();
-      ls.energy.reset();
-    }
-    // Recalculate based on current agent population
+    // Group agents by lineage
+    const agentsByLineage = new Map<number, Agent[]>();
     for (const agent of this.agents) {
-      if (!this.lineages.has(agent.lineageId)) {
-        // This should not happen if registerLineage is called correctly
-        // but as a safeguard:
-        this.registerLineage(agent.lineageId, agent.genome);
+      if (!agentsByLineage.has(agent.lineageId)) {
+        agentsByLineage.set(agent.lineageId, []);
       }
-      const ls = this.lineages.get(agent.lineageId)!;
-      ls.members++;
-      ls.speed.push(agent.speed);
-      ls.vision.push(agent.vision);
-      ls.basal.push(agent.basalRateTrait);
-      ls.energy.push(agent.energy);
+      agentsByLineage.get(agent.lineageId)!.push(agent);
     }
 
-    // Write row and update fitness
-    for (const ls of this.lineages.values()) {
-      if (ls.members > 0) {
-        this.lineageRows.push(`${this.tickCount},${ls.id},${ls.members},${ls.speed.avg.toFixed(3)},${ls.vision.avg.toFixed(3)},${ls.basal.avg.toFixed(3)},${ls.energy.avg.toFixed(3)},${ls.births},${ls.deaths}`);
-        this.lineageFitness.set(ls.id, (this.lineageFitness.get(ls.id) || 0) + ls.members);
+    // Calculate stats and write rows for each active lineage
+    for (const [id, agents] of agentsByLineage.entries()) {
+      const meta = this.lineages.get(id)!;
+      const members = agents.length;
+      meta.cumulativeLifeTicks += members;
+
+      const speed = new RunningStats();
+      const vision = new RunningStats();
+      const basal = new RunningStats();
+      const energy = new RunningStats();
+
+      for (const agent of agents) {
+        speed.push(agent.speed);
+        vision.push(agent.vision);
+        basal.push(agent.basalRateTrait);
+        energy.push(agent.energy);
       }
+
+      const row = [
+        this.tickCount, id, members,
+        speed.avg.toFixed(3), vision.avg.toFixed(3),
+        basal.avg.toFixed(5), energy.avg.toFixed(3),
+        meta.birthsTick, meta.deathsTick
+      ].join(',');
+      this.lineageRows.push(row);
     }
   }
 
@@ -239,20 +237,23 @@ export class World {
    */
   public registerLineage(id: number, founderGenome: Float32Array): void {
     if (this.lineages.has(id)) return;
-    // Create a representative founder agent to store its initial traits.
-    // This agent doesn't "exist" in the world, it's just a data record.
-    const founder = new Agent(-1, -1, 0, founderGenome, id);
     this.lineages.set(id, {
-      id: id,
-      members: 0,
+      founderGenome: new Float32Array(founderGenome),
       births: 0,
       deaths: 0,
-      speed: new RunningStats(),
-      vision: new RunningStats(),
-      basal: new RunningStats(),
-      energy: new RunningStats(),
-      founder: founder,
+      birthsTick: 0,
+      deathsTick: 0,
+      cumulativeLifeTicks: 0,
     });
+  }
+
+  public finalizeLineages(): void {
+    const ranked = Array.from(this.lineages.entries())
+        .sort(([, a], [, b]) => b.cumulativeLifeTicks - a.cumulativeLifeTicks);
+    
+    for (const [id, meta] of ranked) {
+        this.lineageFitnessRows.push(`${id},${meta.cumulativeLifeTicks}`);
+    }
   }
 
   // ───────── telemetry helpers
