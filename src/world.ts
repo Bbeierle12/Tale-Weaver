@@ -45,6 +45,7 @@ export class World {
   public readonly searchRows: string[] = ['tick,successRate'];
 
   // Lineage properties
+  public lineageCounter = 0;
   private lineages = new Map<number, LineageStats>();
   public readonly lineageRows: string[] = ['tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths'];
   private lineageFitness = new Map<number, number>();
@@ -211,13 +212,15 @@ export class World {
     // Recalculate based on current agent population
     for (const agent of this.agents) {
       if (!this.lineages.has(agent.lineageId)) {
-        this.registerLineage(agent);
+        // This should not happen if registerLineage is called correctly
+        // but as a safeguard:
+        this.registerLineage(agent.lineageId, agent.genome);
       }
       const ls = this.lineages.get(agent.lineageId)!;
       ls.members++;
       ls.speed.push(agent.speed);
       ls.vision.push(agent.vision);
-      ls.basal.push(agent.basalRate);
+      ls.basal.push(agent.basalRateTrait);
       ls.energy.push(agent.energy);
     }
 
@@ -230,9 +233,17 @@ export class World {
     }
   }
 
-  private registerLineage(founder: Agent): void {
-    this.lineages.set(founder.lineageId, {
-      id: founder.lineageId,
+  /**
+   * Registers a new lineage. Called from Agent.ts when a mutation
+   * crosses the speciation threshold.
+   */
+  public registerLineage(id: number, founderGenome: Float32Array): void {
+    if (this.lineages.has(id)) return;
+    // Create a representative founder agent to store its initial traits.
+    // This agent doesn't "exist" in the world, it's just a data record.
+    const founder = new Agent(-1, -1, 0, founderGenome, id);
+    this.lineages.set(id, {
+      id: id,
       members: 0,
       births: 0,
       deaths: 0,
@@ -358,7 +369,7 @@ export class World {
     const agent = new Agent(x, y, energy, genome);
     this.agents.push(agent);
     if (!this.lineages.has(agent.lineageId)) {
-      this.registerLineage(agent);
+      this.registerLineage(agent.lineageId, agent.genome);
     }
     return agent;
   }

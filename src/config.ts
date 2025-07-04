@@ -17,6 +17,12 @@ export interface SimConfig {
   metricsInterval: number   // how many ticks between flushing secondary metrics
   hotspotCount: number      // number of Gaussian growth hotspots
   hotspotRadius: number     // sigma for hotspot Gaussian
+  mutationRates: {
+    speed: number;
+    vision: number;
+    basal: number;
+  };
+  lineageThreshold: number;
 }
 
 export const SIM_CONFIG: SimConfig = {
@@ -33,5 +39,11 @@ export const SIM_CONFIG: SimConfig = {
   forageBuf:          20_000,
   metricsInterval:    1,
   hotspotCount:       5,
-  hotspotRadius:      20
+  hotspotRadius:      20,
+  mutationRates: {
+    speed: 0.01,
+    vision: 0.01,
+    basal: 0.01,
+  },
+  lineageThreshold: 0.1,
 };

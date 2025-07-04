@@ -7,17 +7,15 @@ import { rng } from './utils/random';
 import { mapLinear } from './utils/genetics';
 
 let NEXT_ID = 0;
-let NEXT_LINEAGE_ID = 0;
 
 /** Reset the ID counter for new simulations */
 export function resetAgentId(): void {
   NEXT_ID = 0;
-  NEXT_LINEAGE_ID = 0;
 }
 
 export class Agent {
   readonly id = NEXT_ID++;
-  readonly lineageId: number;
+  lineageId: number;
   x: number;
   y: number;
   energy: number;
@@ -27,9 +25,15 @@ export class Agent {
   color: string;
 
   // Phenotype
-  readonly speed: number;
-  readonly vision: number;
-  readonly basalRate: number;
+  get speed(): number {
+    return mapLinear(this.genome[0], 0.5, 2);
+  }
+  get vision(): number {
+    return mapLinear(this.genome[1], 1, 10);
+  }
+  get basalRateTrait(): number {
+    return mapLinear(this.genome[2], 0.5, 2) * SIM_CONFIG.basalRate;
+  }
 
   // Per-tick metrics, reset by World
   stepsTaken = 0;
@@ -41,21 +45,15 @@ export class Agent {
     y: number,
     energy = 5,
     genome?: Float32Array,
-    lineageId?: number
+    lineageId = 0
   ) {
     this.x = x;
     this.y = y;
     this.energy = energy;
 
     // -- Genetics --
-    this.genome = genome ? Agent.mutate(genome) : Agent.randomGenome();
-    this.lineageId = lineageId ?? NEXT_LINEAGE_ID++;
-
-    // -- Phenotype from genes --
-    this.speed = mapLinear(this.genome[3], 0.5, 2); // 0.5-2x base speed
-    this.vision = mapLinear(this.genome[4], 1, 10); // 1-10 tile radius
-    this.basalRate =
-      mapLinear(this.genome[5], 0.5, 2) * SIM_CONFIG.basalRate; // 0.5-2x base BMR
+    this.genome = genome ? new Float32Array(genome) : Agent.randomGenome();
+    this.lineageId = lineageId;
 
     // -- Color from genes --
     const r = Math.floor(this.genome[0] * 255);
@@ -82,13 +80,51 @@ export class Agent {
     return child;
   }
 
+  /** Clone this agent with trait-specific mutation. */
+  cloneWithMutation(
+    world: World,
+    mutationRates = SIM_CONFIG.mutationRates
+  ): Agent {
+    const childGenome = new Float32Array(this.genome);
+    const deltas = [0, 0, 0];
+    if (rng() < mutationRates.speed) {
+      const d = (rng() * 2 - 1) * 0.1;
+      childGenome[0] = Math.min(1, Math.max(0, childGenome[0] + d));
+      deltas[0] = Math.abs(d);
+    }
+    if (rng() < mutationRates.vision) {
+      const d = (rng() * 2 - 1) * 0.1;
+      childGenome[1] = Math.min(1, Math.max(0, childGenome[1] + d));
+      deltas[1] = Math.abs(d);
+    }
+    if (rng() < mutationRates.basal) {
+      const d = (rng() * 2 - 1) * 0.1;
+      childGenome[2] = Math.min(1, Math.max(0, childGenome[2] + d));
+      deltas[2] = Math.abs(d);
+    }
+
+    let lineageId = this.lineageId;
+    if (deltas.some((d) => d >= SIM_CONFIG.lineageThreshold)) {
+      lineageId = ++world.lineageCounter;
+      world.registerLineage(lineageId, childGenome);
+    }
+
+    return new Agent(
+      this.x,
+      this.y,
+      SIM_CONFIG.birthCost,
+      childGenome,
+      lineageId
+    );
+  }
+
   // ───────── per‑tick behaviour — returns a new child if birth occurs
   tick(world: World): Agent | null {
     this.age++;
 
-    // Basal metabolic drain
-    this.energy -= this.basalRate;
-    world.basalDebit += this.basalRate;
+    // Basal metabolic drain (simplified for this model version)
+    this.energy -= SIM_CONFIG.basalRate;
+    world.basalDebit += SIM_CONFIG.basalRate;
 
     // Random walk (von Neumann)
     const dir = Math.floor(rng() * 4);
@@ -100,7 +136,7 @@ export class Agent {
     // Reproduction
     if (this.energy >= SIM_CONFIG.birthThreshold) {
       this.energy -= SIM_CONFIG.birthCost;
-      return new Agent(this.x, this.y, SIM_CONFIG.birthCost, this.genome, this.lineageId);
+      return this.cloneWithMutation(world);
     }
 
     // Death check
@@ -130,9 +166,9 @@ export class Agent {
     }
     this.stepsTaken += 1;
     this.distanceTravelled += 1; // Cardinal moves have distance of 1
-    const moveCost = SIM_CONFIG.moveCostPerStep * (this.speed * this.speed);
-    this.energy -= moveCost;
-    world.moveDebit += moveCost;
+    // Simplified move cost for this model version
+    this.energy -= SIM_CONFIG.moveCostPerStep;
+    world.moveDebit += SIM_CONFIG.moveCostPerStep;
   }
 
   /** Called once per tick after move */
