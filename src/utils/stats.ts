@@ -10,6 +10,14 @@ export class RunningStats {
   private _min = +Infinity;
   private _max = -Infinity;
 
+  reset() {
+    this.n = 0;
+    this.mean = 0;
+    this.M2 = 0;
+    this._min = +Infinity;
+    this._max = -Infinity;
+  }
+
   /** Add a new value to the running statistics. */
   push(x: number) {
     this.n++;

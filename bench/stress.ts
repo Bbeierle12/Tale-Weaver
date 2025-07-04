@@ -32,6 +32,8 @@ const header = [
 ].join(',');
 const rows: string[] = [header];
 
+const allLineageRows: string[] = ['runId,tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths'];
+
 function cloneConfig() { return JSON.parse(JSON.stringify(SIM_CONFIG)); }
 
 function runOne(ps: ParamSet) {
@@ -79,6 +81,11 @@ function runOne(ps: ParamSet) {
     lastHistory ? lastHistory.foodGini.toFixed(4) : '0.0000'
   ].join(','));
 
+  if (world.lineageRows.length > 1) { // if there is data besides header
+    const runLineageData = world.lineageRows.slice(1).map(row => `${ps.id},${row}`);
+    allLineageRows.push(...runLineageData);
+  }
+
   // Restore original config
   Object.assign(SIM_CONFIG, originalConfig);
 }
@@ -96,3 +103,6 @@ for(const g of growthRates){
 
 fs.writeFileSync('stress-summary.csv', rows.join('\n'));
 console.log(`\nSaved stress-summary.csv with ${rows.length - 1} rows.`);
+
+fs.writeFileSync('lineage.csv', allLineageRows.join('\n'));
+console.log(`\nSaved lineage.csv with ${allLineageRows.length - 1} data rows.`);

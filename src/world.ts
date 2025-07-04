@@ -5,6 +5,18 @@ import { RunningStats, calculateGini } from './utils/stats';
 import { SIM_CONFIG } from './config';
 import { Hist } from './utils/hist';
 
+interface LineageStats {
+  id: number;
+  members: number;
+  births: number;
+  deaths: number;
+  speed: RunningStats;
+  vision: RunningStats;
+  basal: RunningStats;
+  energy: RunningStats;
+  founder: Agent;
+}
+
 export class World {
   public width: number;
   public height: number;
@@ -31,6 +43,11 @@ export class World {
   public readonly snapshots: string[] = ['tick,id,x,y,energy,age'];
   public readonly moveStatsRows: string[] = ['tick,totalSteps,totalDist,meanSteps,sdSteps,meanDist,sdDist'];
   public readonly searchRows: string[] = ['tick,successRate'];
+
+  // Lineage properties
+  private lineages = new Map<number, LineageStats>();
+  public readonly lineageRows: string[] = ['tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths'];
+  private lineageFitness = new Map<number, number>();
 
   // Scratch buffers to avoid GC
   private stepBuf: number[] = [];
@@ -75,8 +92,11 @@ export class World {
     return populated;
   }
 
-  public markDeath (): void {
+  public markDeath (agent: Agent): void {
     this.deaths++;
+    if (this.lineages.has(agent.lineageId)) {
+      this.lineages.get(agent.lineageId)!.deaths++;
+    }
   }
 
   private generatePatchMap(): void {
@@ -123,6 +143,7 @@ export class World {
     this.tickCount++;
     this.births = 0;
     this.deaths = 0;
+    this.resetLineageTickStats();
 
     // Food regrowth
     this.regrow();
@@ -137,6 +158,9 @@ export class World {
         if (result !== agent) {
           // Yes, a new child was born.
           this.births++;
+          if (this.lineages.has(result.lineageId)) {
+            this.lineages.get(result.lineageId)!.births++;
+          }
           nextAgents.push(result); // Add the child
         }
         // In all survival cases (birth or not), keep the original agent.
@@ -148,6 +172,8 @@ export class World {
     this.agents = nextAgents;
     this.deathsTotal += this.deaths;
     this.birthsTotal += this.births;
+
+    this.updateLineageStats();
 
     // Telemetry row
     this.pushSeriesRow();
@@ -163,6 +189,59 @@ export class World {
     // Reset per‑tick world debit counters
     this.moveDebit = 0;
     this.basalDebit = 0;
+  }
+
+  // ───────── lineage helpers
+  private resetLineageTickStats(): void {
+    for (const ls of this.lineages.values()) {
+      ls.births = 0;
+      ls.deaths = 0;
+    }
+  }
+
+  private updateLineageStats(): void {
+    // Reset member counts and stats collectors
+    for (const ls of this.lineages.values()) {
+      ls.members = 0;
+      ls.speed.reset();
+      ls.vision.reset();
+      ls.basal.reset();
+      ls.energy.reset();
+    }
+    // Recalculate based on current agent population
+    for (const agent of this.agents) {
+      if (!this.lineages.has(agent.lineageId)) {
+        this.registerLineage(agent);
+      }
+      const ls = this.lineages.get(agent.lineageId)!;
+      ls.members++;
+      ls.speed.push(agent.speed);
+      ls.vision.push(agent.vision);
+      ls.basal.push(agent.basalRate);
+      ls.energy.push(agent.energy);
+    }
+
+    // Write row and update fitness
+    for (const ls of this.lineages.values()) {
+      if (ls.members > 0) {
+        this.lineageRows.push(`${this.tickCount},${ls.id},${ls.members},${ls.speed.avg.toFixed(3)},${ls.vision.avg.toFixed(3)},${ls.basal.avg.toFixed(3)},${ls.energy.avg.toFixed(3)},${ls.births},${ls.deaths}`);
+        this.lineageFitness.set(ls.id, (this.lineageFitness.get(ls.id) || 0) + ls.members);
+      }
+    }
+  }
+
+  private registerLineage(founder: Agent): void {
+    this.lineages.set(founder.lineageId, {
+      id: founder.lineageId,
+      members: 0,
+      births: 0,
+      deaths: 0,
+      speed: new RunningStats(),
+      vision: new RunningStats(),
+      basal: new RunningStats(),
+      energy: new RunningStats(),
+      founder: founder,
+    });
   }
 
   // ───────── telemetry helpers
@@ -278,6 +357,9 @@ export class World {
   public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array): Agent {
     const agent = new Agent(x, y, energy, genome);
     this.agents.push(agent);
+    if (!this.lineages.has(agent.lineageId)) {
+      this.registerLineage(agent);
+    }
     return agent;
   }
 }
