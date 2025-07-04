@@ -25,7 +25,7 @@ const prompt = ai.definePrompt({
   input: {schema: SimulationChatInputSchema},
   output: {schema: SimulationChatOutputSchema},
   config: {
-    maxOutputTokens: 750000,
+    maxOutputTokens: Number(process.env.MAX_OUTPUT_TOKENS ?? 4096),
   },
   prompt: `You are a helpful and brilliant simulation analyst called 'SIM-SAGE'. The user is running an agent-based simulation and will ask you questions about the data.
 
