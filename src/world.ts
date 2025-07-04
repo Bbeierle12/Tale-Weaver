@@ -32,12 +32,13 @@ export class World {
   public readonly snapshots: string[] = ['tick,id,x,y,energy,age'];
   public readonly moveStatsRows: string[] = ['tick,totalSteps,totalDist,meanSteps,sdSteps,meanDist,sdDist'];
   public readonly searchRows: string[] = ['tick,successRate'];
-
-  // Lineage properties
-  public lineageCounter = 0;
-  private lineages = new Map<number, LineageMetadata>();
   public readonly lineageRows: string[] = ['tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths'];
   public readonly lineageFitnessRows: string[] = ['lineageId,fitness'];
+
+  // Lineage tracking
+  public lineageCounter = 0;
+  private lineageData: Map<number, LineageMetadata> = new Map();
+
 
   // Scratch buffers to avoid GC
   private stepBuf: number[] = [];
@@ -82,9 +83,9 @@ export class World {
     return populated;
   }
 
-  public markDeath (agent: Agent): void {
+  public markDeath(agent: Agent): void {
     this.deaths++;
-    const meta = this.lineages.get(agent.lineageId);
+    const meta = this.lineageData.get(agent.lineageId);
     if (meta) {
       meta.deaths++;
       meta.deathsTick++;
@@ -135,7 +136,12 @@ export class World {
     this.tickCount++;
     this.births = 0;
     this.deaths = 0;
-    this.resetLineageTickStats();
+    
+    // Reset per-tick lineage counters
+    for (const meta of this.lineageData.values()) {
+      meta.birthsTick = 0;
+      meta.deathsTick = 0;
+    }
 
     // Food regrowth
     this.regrow();
@@ -146,34 +152,31 @@ export class World {
       const result = agent.tick(this);
       
       if (result) {
-        // Agent survived. Was it a birth?
-        if (result !== agent) {
-          // Yes, a new child was born.
+        if (result !== agent) { // Birth occurred
           this.births++;
-          const meta = this.lineages.get(result.lineageId);
-          if (meta) {
-            meta.births++;
-            meta.birthsTick++;
-          }
-          nextAgents.push(result); // Add the child
+          const meta = this.lineageData.get(result.lineageId);
+          if (meta) { meta.births++; meta.birthsTick++; }
+          nextAgents.push(result);
         }
-        // In all survival cases (birth or not), keep the original agent.
-        nextAgents.push(agent);
+        nextAgents.push(agent); // Survivor
       }
-      // If result is null, the agent died and is not added to nextAgents.
+      // Death is handled by agent.tick() calling world.markDeath()
     }
 
     this.agents = nextAgents;
     this.deathsTotal += this.deaths;
     this.birthsTotal += this.births;
 
-    this.updateLineageStats();
-
     // Telemetry row
     this.pushSeriesRow();
-
-    // Periodic snapshot
-    if (this.tickCount % SIM_CONFIG.snapshotInterval === 0) this.pushSnapshots();
+    
+    // Periodic stats
+    if (this.tickCount % SIM_CONFIG.histogramInterval === 0) {
+       this.pushLineageStats();
+    }
+    if (this.tickCount % SIM_CONFIG.snapshotInterval === 0) {
+      this.pushSnapshots();
+    }
     
     // Reset agent counters for next tick
     for (const agent of this.agents) {
@@ -184,17 +187,8 @@ export class World {
     this.moveDebit = 0;
     this.basalDebit = 0;
   }
-
-  // ───────── lineage helpers
-  private resetLineageTickStats(): void {
-    for (const meta of this.lineages.values()) {
-      meta.birthsTick = 0;
-      meta.deathsTick = 0;
-    }
-  }
-
-  private updateLineageStats(): void {
-    // Group agents by lineage
+  
+  private pushLineageStats(): void {
     const agentsByLineage = new Map<number, Agent[]>();
     for (const agent of this.agents) {
       if (!agentsByLineage.has(agent.lineageId)) {
@@ -203,11 +197,10 @@ export class World {
       agentsByLineage.get(agent.lineageId)!.push(agent);
     }
 
-    // Calculate stats and write rows for each active lineage
     for (const [id, agents] of agentsByLineage.entries()) {
-      const meta = this.lineages.get(id)!;
+      const meta = this.lineageData.get(id)!;
       const members = agents.length;
-      meta.cumulativeLifeTicks += members;
+      meta.cumulativeLifeTicks += members * SIM_CONFIG.histogramInterval;
 
       const speed = new RunningStats();
       const vision = new RunningStats();
@@ -231,28 +224,11 @@ export class World {
     }
   }
 
-  /**
-   * Registers a new lineage. Called from Agent.ts when a mutation
-   * crosses the speciation threshold.
-   */
-  public registerLineage(id: number, founderGenome: Float32Array): void {
-    if (this.lineages.has(id)) return;
-    this.lineages.set(id, {
-      founderGenome: new Float32Array(founderGenome),
-      births: 0,
-      deaths: 0,
-      birthsTick: 0,
-      deathsTick: 0,
-      cumulativeLifeTicks: 0,
-    });
-  }
-
   public finalizeLineages(): void {
-    const ranked = Array.from(this.lineages.entries())
-        .sort(([, a], [, b]) => b.cumulativeLifeTicks - a.cumulativeLifeTicks);
-    
-    for (const [id, meta] of ranked) {
-        this.lineageFitnessRows.push(`${id},${meta.cumulativeLifeTicks}`);
+    const arr = Array.from(this.lineageData.entries()).map(([id, m]) => ({id, fitness: m.cumulativeLifeTicks}));
+    arr.sort((a,b) => b.fitness - a.fitness);
+    for (const e of arr) {
+      this.lineageFitnessRows.push(`${e.id},${e.fitness}`);
     }
   }
 
@@ -349,6 +325,19 @@ export class World {
     }
   }
 
+  public registerLineage(id: number, genome: Float32Array): void {
+    if (!this.lineageData.has(id)) {
+      this.lineageData.set(id, {
+        founderGenome: genome,
+        cumulativeLifeTicks: 0,
+        births: 0,
+        deaths: 0,
+        birthsTick: 0,
+        deathsTick: 0
+      });
+    }
+  }
+
   // Getters for HUD
   get avgTileFood(): number {
     if (this.food.length === 0) return 0;
@@ -366,12 +355,13 @@ export class World {
     return this.agents.length ? sumEnergy / this.agents.length : 0;
   }
 
-  public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array): Agent {
-    const agent = new Agent(x, y, energy, genome);
-    this.agents.push(agent);
-    if (!this.lineages.has(agent.lineageId)) {
-      this.registerLineage(agent.lineageId, agent.genome);
+  public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array, lineageId?: number): Agent {
+    const id = lineageId !== undefined ? lineageId : this.lineageCounter++;
+    const agent = new Agent(x, y, energy, genome, id);
+    if (!this.lineageData.has(id)) {
+        this.registerLineage(id, agent.genome);
     }
+    this.agents.push(agent);
     return agent;
   }
 }
