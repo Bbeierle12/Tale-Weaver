@@ -21,29 +21,44 @@ export class World {
   public moveDebit = 0;
   public basalDebit = 0;
   public readonly energyHist = new Hist(SIM_CONFIG.histBins);
-  public readonly forageLog: { tick: number, id: number, x: number, y: number, e: number }[];
+  public readonly forageLog: {
+    tick: number;
+    id: number;
+    x: number;
+    y: number;
+    e: number;
+  }[];
   private foragePtr = 0;
   private patchMap: Float32Array;
 
   // CSV Buffers / History
   public history: TickStats[] = []; // For AI analysis - object format
-  public readonly series: string[] = ['tick,pop,births,deaths,meanE,sdE,moveDebit,basalDebit,minFood,maxFood,foodGini,successRate,meanSteps'];
-  public readonly histRows: string[] = [`tick,${Array.from({ length: SIM_CONFIG.histBins }, (_, i) => `b${i}`).join(',')}`];
+  public readonly series: string[] = [
+    'tick,pop,births,deaths,meanE,sdE,moveDebit,basalDebit,minFood,maxFood,foodGini,successRate,meanSteps',
+  ];
+  public readonly histRows: string[] = [
+    `tick,${Array.from({ length: SIM_CONFIG.histBins }, (_, i) => `b${i}`).join(
+      ',',
+    )}`,
+  ];
   public readonly snapshots: string[] = ['tick,id,x,y,energy,age'];
-  public readonly moveStatsRows: string[] = ['tick,totalSteps,totalDist,meanSteps,sdSteps,meanDist,sdDist'];
+  public readonly moveStatsRows: string[] = [
+    'tick,totalSteps,totalDist,meanSteps,sdSteps,meanDist,sdDist',
+  ];
   public readonly searchRows: string[] = ['tick,successRate'];
-  public readonly lineageRows: string[] = ['tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths'];
+  public readonly lineageRows: string[] = [
+    'tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths',
+  ];
   public readonly lineageFitnessRows: string[] = ['lineageId,fitness'];
 
   // Lineage tracking
   public lineageCounter = 0;
   private lineageData: Map<number, LineageMetadata> = new Map();
 
-
   // Scratch buffers to avoid GC
   private stepBuf: number[] = [];
 
-  constructor (width = 200, height = 200) {
+  constructor(width = 200, height = 200) {
     this.width = width;
     this.height = height;
     this.food = new Float32Array(width * height);
@@ -51,11 +66,15 @@ export class World {
     this.patchMap = new Float32Array(width * height);
     this.generatePatchMap();
     // Initialize forageLog with empty objects to avoid resizing
-    this.forageLog = new Array(SIM_CONFIG.forageBuf).fill(null).map(() => ({ tick: 0, id: 0, x: 0, y: 0, e: 0 }));
+    this.forageLog = new Array(SIM_CONFIG.forageBuf)
+      .fill(null)
+      .map(() => ({ tick: 0, id: 0, x: 0, y: 0, e: 0 }));
   }
 
   // ───────── utilities
-  private idx (x: number, y: number): number { return (y | 0) * this.width + (x | 0) }
+  private idx(x: number, y: number): number {
+    return (y | 0) * this.width + (x | 0);
+  }
 
   public consumeFood(tx: number, ty: number, units: number): number {
     const i = this.idx(tx, ty);
@@ -67,7 +86,7 @@ export class World {
     return eaten;
   }
 
-  public recordForage (tick: number, a: Agent, e: number): void {
+  public recordForage(tick: number, a: Agent, e: number): void {
     const entry = this.forageLog[this.foragePtr];
     entry.tick = tick;
     entry.id = a.id;
@@ -77,9 +96,17 @@ export class World {
     this.foragePtr = (this.foragePtr + 1) % SIM_CONFIG.forageBuf;
   }
 
-  public getForageData(): readonly { tick: number, id: number, x: number, y: number, e: number }[] {
+  public getForageData(): readonly {
+    tick: number;
+    id: number;
+    x: number;
+    y: number;
+    e: number;
+  }[] {
     // Return only the populated part of the ring buffer
-    const populated = this.forageLog.slice(0, this.foragePtr).filter(e => e.tick > 0);
+    const populated = this.forageLog
+      .slice(0, this.foragePtr)
+      .filter((e) => e.tick > 0);
     return populated;
   }
 
@@ -93,11 +120,11 @@ export class World {
   }
 
   private generatePatchMap(): void {
-    const centers: {x: number; y: number;}[] = [];
+    const centers: { x: number; y: number }[] = [];
     for (let i = 0; i < SIM_CONFIG.hotspotCount; i++) {
       centers.push({
         x: Math.floor(rng() * this.width),
-        y: Math.floor(rng() * this.height)
+        y: Math.floor(rng() * this.height),
       });
     }
     const sigma = SIM_CONFIG.hotspotRadius;
@@ -132,11 +159,11 @@ export class World {
   }
 
   // ───────── main update
-  public step (): void {
+  public step(): void {
     this.tickCount++;
     this.births = 0;
     this.deaths = 0;
-    
+
     // Reset per-tick lineage counters
     for (const meta of this.lineageData.values()) {
       meta.birthsTick = 0;
@@ -150,12 +177,16 @@ export class World {
     const nextAgents: Agent[] = [];
     for (const agent of this.agents) {
       const result = agent.tick(this);
-      
+
       if (result) {
-        if (result !== agent) { // Birth occurred
+        if (result !== agent) {
+          // Birth occurred
           this.births++;
           const meta = this.lineageData.get(result.lineageId);
-          if (meta) { meta.births++; meta.birthsTick++; }
+          if (meta) {
+            meta.births++;
+            meta.birthsTick++;
+          }
           nextAgents.push(result);
         }
         nextAgents.push(agent); // Survivor
@@ -169,25 +200,25 @@ export class World {
 
     // Telemetry row
     this.pushSeriesRow();
-    
+
     // Periodic stats
     if (this.tickCount % SIM_CONFIG.histogramInterval === 0) {
-       this.pushLineageStats();
+      this.pushLineageStats();
     }
     if (this.tickCount % SIM_CONFIG.snapshotInterval === 0) {
       this.pushSnapshots();
     }
-    
+
     // Reset agent counters for next tick
     for (const agent of this.agents) {
-        agent.resetTickMetrics();
+      agent.resetTickMetrics();
     }
 
     // Reset per‑tick world debit counters
     this.moveDebit = 0;
     this.basalDebit = 0;
   }
-  
+
   private pushLineageStats(): void {
     const agentsByLineage = new Map<number, Agent[]>();
     for (const agent of this.agents) {
@@ -215,27 +246,35 @@ export class World {
       }
 
       const row = [
-        this.tickCount, id, members,
-        speed.avg.toFixed(3), vision.avg.toFixed(3),
-        basal.avg.toFixed(5), energy.avg.toFixed(3),
-        meta.birthsTick, meta.deathsTick
+        this.tickCount,
+        id,
+        members,
+        speed.avg.toFixed(3),
+        vision.avg.toFixed(3),
+        basal.avg.toFixed(5),
+        energy.avg.toFixed(3),
+        meta.birthsTick,
+        meta.deathsTick,
       ].join(',');
       this.lineageRows.push(row);
     }
   }
 
   public finalizeLineages(): void {
-    const arr = Array.from(this.lineageData.entries()).map(([id, m]) => ({id, fitness: m.cumulativeLifeTicks}));
-    arr.sort((a,b) => b.fitness - a.fitness);
+    const arr = Array.from(this.lineageData.entries()).map(([id, m]) => ({
+      id,
+      fitness: m.cumulativeLifeTicks,
+    }));
+    arr.sort((a, b) => b.fitness - a.fitness);
     for (const e of arr) {
       this.lineageFitnessRows.push(`${e.id},${e.fitness}`);
     }
   }
 
   // ───────── telemetry helpers
-  private pushSeriesRow (): void {
+  private pushSeriesRow(): void {
     const pop = this.agents.length;
-    
+
     // --- Existing Stats ---
     const energyStats = new RunningStats();
     this.energyHist.reset();
@@ -246,8 +285,8 @@ export class World {
     const foodStats = new RunningStats();
     const foodValues: number[] = [];
     for (const f of this.food) {
-        foodStats.push(f);
-        foodValues.push(f);
+      foodStats.push(f);
+      foodValues.push(f);
     }
     const foodGini = calculateGini(foodValues);
 
@@ -256,7 +295,7 @@ export class World {
     let sumSteps = 0;
     let sumDist = 0;
     let success = 0;
-    
+
     for (let i = 0; i < pop; i++) {
       const a = this.agents[i];
       this.stepBuf[i] = a.stepsTaken;
@@ -264,64 +303,85 @@ export class World {
       sumDist += a.distanceTravelled;
       if (a.foundFood) success++;
     }
-    
+
     const meanSteps = pop > 0 ? sumSteps / pop : 0;
     const meanDist = pop > 0 ? sumDist / pop : 0;
     const successRate = pop > 0 ? success / pop : 0;
 
     let varSteps = 0;
     for (const steps of this.stepBuf) {
-        const dStep = steps - meanSteps;
-        varSteps += dStep * dStep;
+      const dStep = steps - meanSteps;
+      varSteps += dStep * dStep;
     }
     const sdSteps = pop > 0 ? Math.sqrt(varSteps / pop) : 0;
-    
+
     let varDist = 0;
     for (const steps of this.stepBuf) {
-        const dDist = steps - meanDist; // Using steps as proxy for distance
-        varDist += dDist * dDist;
+      const dDist = steps - meanDist; // Using steps as proxy for distance
+      varDist += dDist * dDist;
     }
     const sdDist = pop > 0 ? Math.sqrt(varDist / pop) : 0;
 
     if (this.tickCount % SIM_CONFIG.metricsInterval === 0) {
-        this.moveStatsRows.push(
-            `${this.tickCount},${sumSteps},${sumDist.toFixed(2)},${meanSteps.toFixed(2)},${sdSteps.toFixed(2)},${meanDist.toFixed(2)},${sdDist.toFixed(2)}`
-        );
-        this.searchRows.push(`${this.tickCount},${successRate.toFixed(3)}`);
+      this.moveStatsRows.push(
+        `${this.tickCount},${sumSteps},${sumDist.toFixed(
+          2,
+        )},${meanSteps.toFixed(2)},${sdSteps.toFixed(2)},${meanDist.toFixed(
+          2,
+        )},${sdDist.toFixed(2)}`,
+      );
+      this.searchRows.push(`${this.tickCount},${successRate.toFixed(3)}`);
     }
 
     const tickStats: TickStats = {
-        tick: this.tickCount,
-        population: pop,
-        births: this.births,
-        deaths: this.deaths,
-        avgEnergy: energyStats.avg,
-        energySD: energyStats.sd,
-        minEnergy: energyStats.min,
-        maxEnergy: energyStats.max,
-        energyHistogram: this.tickCount % SIM_CONFIG.histogramInterval === 0 ? this.energyHist.toArray() : undefined,
-        avgTileFood: foodStats.avg,
-        avgTileFoodSD: foodStats.sd,
-        minTileFood: foodStats.min,
-        maxTileFood: foodStats.max,
-        foodGini,
+      tick: this.tickCount,
+      population: pop,
+      births: this.births,
+      deaths: this.deaths,
+      avgEnergy: energyStats.avg,
+      energySD: energyStats.sd,
+      minEnergy: energyStats.min,
+      maxEnergy: energyStats.max,
+      energyHistogram:
+        this.tickCount % SIM_CONFIG.histogramInterval === 0
+          ? this.energyHist.toArray()
+          : undefined,
+      avgTileFood: foodStats.avg,
+      avgTileFoodSD: foodStats.sd,
+      minTileFood: foodStats.min,
+      maxTileFood: foodStats.max,
+      foodGini,
     };
     this.history.push(tickStats);
 
     const row = [
-      this.tickCount, pop, this.births, this.deaths,
-      energyStats.avg.toFixed(3), energyStats.sd.toFixed(3),
-      this.moveDebit.toFixed(3), this.basalDebit.toFixed(3),
-      foodStats.min.toFixed(2), foodStats.max.toFixed(2), foodGini.toFixed(3),
-      successRate.toFixed(3), meanSteps.toFixed(2)
+      this.tickCount,
+      pop,
+      this.births,
+      this.deaths,
+      energyStats.avg.toFixed(3),
+      energyStats.sd.toFixed(3),
+      this.moveDebit.toFixed(3),
+      this.basalDebit.toFixed(3),
+      foodStats.min.toFixed(2),
+      foodStats.max.toFixed(2),
+      foodGini.toFixed(3),
+      successRate.toFixed(3),
+      meanSteps.toFixed(2),
     ].join(',');
     this.series.push(row);
-    this.histRows.push(`${this.tickCount},${this.energyHist.toArray().join(',')}`);
+    this.histRows.push(
+      `${this.tickCount},${this.energyHist.toArray().join(',')}`,
+    );
   }
 
-  private pushSnapshots (): void {
+  private pushSnapshots(): void {
     for (const a of this.agents) {
-      this.snapshots.push(`${this.tickCount},${a.id},${a.x},${a.y},${a.energy.toFixed(3)},${a.age}`);
+      this.snapshots.push(
+        `${this.tickCount},${a.id},${a.x},${a.y},${a.energy.toFixed(3)},${
+          a.age
+        }`,
+      );
     }
   }
 
@@ -333,7 +393,7 @@ export class World {
         births: 0,
         deaths: 0,
         birthsTick: 0,
-        deathsTick: 0
+        deathsTick: 0,
       });
     }
   }
@@ -355,11 +415,17 @@ export class World {
     return this.agents.length ? sumEnergy / this.agents.length : 0;
   }
 
-  public spawnAgent(x: number, y: number, energy = 10, genome?: Float32Array, lineageId?: number): Agent {
+  public spawnAgent(
+    x: number,
+    y: number,
+    energy = 10,
+    genome?: Float32Array,
+    lineageId?: number,
+  ): Agent {
     const id = lineageId !== undefined ? lineageId : this.lineageCounter++;
     const agent = new Agent(x, y, energy, genome, id);
     if (!this.lineageData.has(id)) {
-        this.registerLineage(id, agent.genome);
+      this.registerLineage(id, agent.genome);
     }
     this.agents.push(agent);
     return agent;
