@@ -6,8 +6,22 @@ import { World } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Pause, Play, RotateCcw, Download, MessageSquare, BrainCircuit, FileText, StepForward, Database, BarChart } from 'lucide-react';
-import { analyzeSimulationAction, generateSpeciesNameAction } from '@/app/actions';
+import {
+  Pause,
+  Play,
+  RotateCcw,
+  Download,
+  MessageSquare,
+  BrainCircuit,
+  FileText,
+  StepForward,
+  Database,
+  BarChart,
+} from 'lucide-react';
+import {
+  analyzeSimulationAction,
+  generateSpeciesNameAction,
+} from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { rng, setSeed } from '@/utils/random';
 import { Input } from '@/components/ui/input';
@@ -16,7 +30,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatView } from './chat-view';
 import { AnalysisDialog } from './analysis-dialog';
 import { SIM_CONFIG } from '@/config';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { resetAgentId } from '@/Agent';
 import { summarizeHistory } from '@/utils/history';
 
@@ -47,70 +67,50 @@ export function SimulationClient() {
   const [seed, setSeedValue] = useState(1);
   const [regrowthRate, setRegrowthRate] = useState(SIM_CONFIG.growthRate);
   const [colorCounts, setColorCounts] = useState(new Map<string, number>());
-  const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(new Map());
-  const [pendingNameRequests, setPendingNameRequests] = useState<Set<string>>(new Set());
+  const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(
+    new Map(),
+  );
+  const [pendingNameRequests, setPendingNameRequests] = useState<Set<string>>(
+    new Set(),
+  );
 
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
-  const resetSimulation = useCallback((seedToUse: number, regrowthRateToUse: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const resetSimulation = useCallback(
+    (seedToUse: number, regrowthRateToUse: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    if (controllerRef.current) {
-      controllerRef.current.stop();
-      // Clean up renderer event listeners
-      controllerRef.current.renderer.dispose();
-    }
-    if (hudIntervalRef.current) {
-      clearInterval(hudIntervalRef.current);
-    }
-    
-    setSeed(seedToUse);
-    setSeedValue(seedToUse);
-    // Note: SIM_CONFIG is readonly, but we can pass the rate to the world constructor if needed
-    // For now, we'll let the world use its default, but this could be a point of extension.
-    // setRegrowthRate(regrowthRateToUse);
+      if (controllerRef.current) {
+        controllerRef.current.stop();
+        // Clean up renderer event listeners
+        controllerRef.current.renderer.dispose();
+      }
+      if (hudIntervalRef.current) {
+        clearInterval(hudIntervalRef.current);
+      }
 
-    // Reset agent IDs when starting a new world
-    resetAgentId();
+      setSeed(seedToUse);
+      setSeedValue(seedToUse);
+      // Note: SIM_CONFIG is readonly, but we can pass the rate to the world constructor if needed
+      // For now, we'll let the world use its default, but this could be a point of extension.
+      // setRegrowthRate(regrowthRateToUse);
 
-    const newWorld = new World();
-    for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
-      newWorld.spawnAgent(
-        rng() * newWorld.width,
-        rng() * newWorld.height
-      );
-    }
-    setWorld(newWorld);
-    setPeakAgentCount(INITIAL_AGENT_COUNT);
-    setColorCounts(new Map());
-    setSpeciesNames(new Map());
-    setPendingNameRequests(new Set());
-    
-    setHudData({
-      tick: newWorld.tickCount,
-      alive: newWorld.agents.length,
-      deathsTotal: newWorld.deathsTotal,
-      avgTileFood: newWorld.avgTileFood,
-      avgEnergy: newWorld.avgEnergy,
-    });
+      // Reset agent IDs when starting a new world
+      resetAgentId();
 
+      const newWorld = new World();
+      for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
+        newWorld.spawnAgent(rng() * newWorld.width, rng() * newWorld.height);
+      }
+      setWorld(newWorld);
+      setPeakAgentCount(INITIAL_AGENT_COUNT);
+      setColorCounts(new Map());
+      setSpeciesNames(new Map());
+      setPendingNameRequests(new Set());
 
-    const renderer = new Renderer(canvas, newWorld);
-    const controller = new SimController(newWorld, renderer);
-    controllerRef.current = controller;
-
-    controller.start();
-    if (!controller.paused) {
-      controller.togglePause();
-    }
-    setIsPaused(true);
-    renderer.draw();
-
-    hudIntervalRef.current = setInterval(() => {
-      if (!controllerRef.current || controllerRef.current.paused) return;
       setHudData({
         tick: newWorld.tickCount,
         alive: newWorld.agents.length,
@@ -118,22 +118,47 @@ export function SimulationClient() {
         avgTileFood: newWorld.avgTileFood,
         avgEnergy: newWorld.avgEnergy,
       });
-      setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
 
-      const newColorCounts = new Map<string, number>();
-      for (const agent of newWorld.agents) {
-        newColorCounts.set(agent.color, (newColorCounts.get(agent.color) || 0) + 1);
+      const renderer = new Renderer(canvas, newWorld);
+      const controller = new SimController(newWorld, renderer);
+      controllerRef.current = controller;
+
+      controller.start();
+      if (!controller.paused) {
+        controller.togglePause();
       }
-      setColorCounts(newColorCounts);
+      setIsPaused(true);
+      renderer.draw();
 
-    }, 400);
-  }, []);
+      hudIntervalRef.current = setInterval(() => {
+        if (!controllerRef.current || controllerRef.current.paused) return;
+        setHudData({
+          tick: newWorld.tickCount,
+          alive: newWorld.agents.length,
+          deathsTotal: newWorld.deathsTotal,
+          avgTileFood: newWorld.avgTileFood,
+          avgEnergy: newWorld.avgEnergy,
+        });
+        setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
+
+        const newColorCounts = new Map<string, number>();
+        for (const agent of newWorld.agents) {
+          newColorCounts.set(
+            agent.color,
+            (newColorCounts.get(agent.color) || 0) + 1,
+          );
+        }
+        setColorCounts(newColorCounts);
+      }, 400);
+    },
+    [],
+  );
 
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
     setIsPaused((p) => !p);
   }, []);
-  
+
   const handleStep = useCallback(() => {
     if (isPaused && controllerRef.current) {
       // Manually advance one tick
@@ -165,7 +190,7 @@ export function SimulationClient() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-  
+
   const handleDownloadLog = useCallback(() => {
     if (!world || world.series.length <= 1) {
       toast({ variant: 'destructive', title: 'No Data to Download' });
@@ -180,18 +205,20 @@ export function SimulationClient() {
     if (!world) return;
     const forageData = world.getForageData();
     if (forageData.length === 0) {
-      toast({ variant: 'destructive', title: 'No Data to Download'});
+      toast({ variant: 'destructive', title: 'No Data to Download' });
       return;
     }
     const header = 't,i,x,y,f';
-    const csvRows = forageData.map(d => `${d.tick},${d.id},${d.x},${d.y},${d.e.toFixed(2)}`);
+    const csvRows = forageData.map(
+      (d) => `${d.tick},${d.id},${d.x},${d.y},${d.e.toFixed(2)}`,
+    );
     const blob = createCsvBlob(header, csvRows);
     downloadCsv(blob, `forage-log-seed-${seed}.csv`);
   }, [world, seed, toast]);
 
   const handleDownloadSnapshotLog = useCallback(() => {
     if (!world || world.snapshots.length <= 1) {
-      toast({ variant: 'destructive', title: 'No Data to Download'});
+      toast({ variant: 'destructive', title: 'No Data to Download' });
       return;
     }
     const [header, ...rows] = world.snapshots;
@@ -201,7 +228,7 @@ export function SimulationClient() {
 
   const handleDownloadHistLog = useCallback(() => {
     if (!world || world.histRows.length <= 1) {
-       toast({ variant: 'destructive', title: 'No Data to Download'});
+      toast({ variant: 'destructive', title: 'No Data to Download' });
       return;
     }
     const [header, ...rows] = world.histRows;
@@ -214,7 +241,8 @@ export function SimulationClient() {
       toast({
         variant: 'destructive',
         title: 'Not Ready for Analysis',
-        description: 'Please pause the simulation after some data has been generated.',
+        description:
+          'Please pause the simulation after some data has been generated.',
       });
       return;
     }
@@ -223,7 +251,9 @@ export function SimulationClient() {
     setIsAnalysisLoading(true);
     setAnalysisResult(null);
 
-    const { history: prunedHistory, truncated } = summarizeHistory(world.history);
+    const { history: prunedHistory, truncated } = summarizeHistory(
+      world.history,
+    );
 
     if (truncated) {
       toast({
@@ -259,29 +289,29 @@ export function SimulationClient() {
         clearInterval(hudIntervalRef.current);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!colorCounts) return;
-  
+
     const newColors = Array.from(colorCounts.keys());
-  
+
     for (const color of newColors) {
       if (!speciesNames.has(color) && !pendingNameRequests.has(color)) {
-        setPendingNameRequests(prev => new Set(prev).add(color));
-        
+        setPendingNameRequests((prev) => new Set(prev).add(color));
+
         generateSpeciesNameAction({ color })
-          .then(name => {
+          .then((name) => {
             if (name.genus && name.species) {
-              setSpeciesNames(prev => new Map(prev).set(color, name));
+              setSpeciesNames((prev) => new Map(prev).set(color, name));
             }
           })
-          .catch(err => {
+          .catch((err) => {
             console.error(`Failed to generate name for color ${color}:`, err);
           })
           .finally(() => {
-            setPendingNameRequests(prev => {
+            setPendingNameRequests((prev) => {
               const next = new Set(prev);
               next.delete(color);
               return next;
@@ -295,43 +325,67 @@ export function SimulationClient() {
     <div className="relative h-screen w-full bg-gray-900">
       <Hud {...hudData} />
 
-      <Tabs defaultValue="species" className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-1 rounded-lg w-80 z-10 flex flex-col" style={{height: 'calc(100vh - 9rem)'}}>
+      <Tabs
+        defaultValue="species"
+        className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-1 rounded-lg w-80 z-10 flex flex-col"
+        style={{ height: 'calc(100vh - 9rem)' }}
+      >
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="species"><BrainCircuit className="mr-2"/>Species</TabsTrigger>
-          <TabsTrigger value="chat"><MessageSquare className="mr-2"/>Chat</TabsTrigger>
+          <TabsTrigger value="species">
+            <BrainCircuit className="mr-2" />
+            Species
+          </TabsTrigger>
+          <TabsTrigger value="chat">
+            <MessageSquare className="mr-2" />
+            Chat
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="species" className="flex-1 overflow-y-auto mt-2 pr-1 font-mono text-white text-sm">
+        <TabsContent
+          value="species"
+          className="flex-1 overflow-y-auto mt-2 pr-1 font-mono text-white text-sm"
+        >
           <h3 className="font-bold mb-2 text-base px-2">Species on Board</h3>
-          {colorCounts.size === 0 && <p className="text-xs text-gray-400 px-2">No agents yet.</p>}
+          {colorCounts.size === 0 && (
+            <p className="text-xs text-gray-400 px-2">No agents yet.</p>
+          )}
           <ul className="space-y-2">
             {Array.from(colorCounts.entries())
               .sort(([, a], [, b]) => b - a)
               .map(([color, count]) => {
                 const speciesInfo = speciesNames.get(color);
                 return (
-                <li key={color} className="flex items-start justify-between gap-3 px-2">
-                  <div className="flex items-start gap-2 pt-1">
-                    <div className="w-4 h-4 shrink-0 rounded-full border border-white/20" style={{ backgroundColor: color }} />
-                    <div className="flex-1 text-xs">
-                      {speciesInfo ? (
-                        <>
-                          <span className="font-bold italic display-block">{speciesInfo.genus} {speciesInfo.species}</span>
-                          <span className="text-gray-400 block">{color}</span>
-                        </>
-                      ) : pendingNameRequests.has(color) ? (
-                        <span className="text-gray-400">naming...</span>
-                      ) : (
-                        <span>{color}</span>
-                      )}
+                  <li
+                    key={color}
+                    className="flex items-start justify-between gap-3 px-2"
+                  >
+                    <div className="flex items-start gap-2 pt-1">
+                      <div
+                        className="w-4 h-4 shrink-0 rounded-full border border-white/20"
+                        style={{ backgroundColor: color }}
+                      />
+                      <div className="flex-1 text-xs">
+                        {speciesInfo ? (
+                          <>
+                            <span className="font-bold italic display-block">
+                              {speciesInfo.genus} {speciesInfo.species}
+                            </span>
+                            <span className="text-gray-400 block">{color}</span>
+                          </>
+                        ) : pendingNameRequests.has(color) ? (
+                          <span className="text-gray-400">naming...</span>
+                        ) : (
+                          <span>{color}</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <span className="font-bold text-base">{count}</span>
-                </li>
-              )})}
+                    <span className="font-bold text-base">{count}</span>
+                  </li>
+                );
+              })}
           </ul>
         </TabsContent>
         <TabsContent value="chat" className="flex-1 mt-0 -mx-1 -mb-1">
-           <ChatView 
+          <ChatView
             isPaused={isPaused}
             simulationData={{
               ticks: hudData.tick,
@@ -357,15 +411,29 @@ export function SimulationClient() {
             )}
             {isPaused ? (hudData.tick === 0 ? 'Start' : 'Resume') : 'Pause'}
           </Button>
-          <Button onClick={handleStep} variant="outline" size="icon" disabled={!isPaused} title="Step Forward">
+          <Button
+            onClick={handleStep}
+            variant="outline"
+            size="icon"
+            disabled={!isPaused}
+            title="Step Forward"
+          >
             <StepForward className="h-4 w-4" />
           </Button>
-          <Button onClick={() => resetSimulation(seed, regrowthRate)} variant="outline">
+          <Button
+            onClick={() => resetSimulation(seed, regrowthRate)}
+            variant="outline"
+          >
             <RotateCcw className="mr-2 h-4 w-4" />
             Reset
           </Button>
           <div className="flex items-center gap-2 pl-4">
-            <Label htmlFor="seed-input" className="text-white font-mono text-sm">Seed</Label>
+            <Label
+              htmlFor="seed-input"
+              className="text-white font-mono text-sm"
+            >
+              Seed
+            </Label>
             <Input
               id="seed-input"
               type="number"
@@ -379,25 +447,53 @@ export function SimulationClient() {
 
         {/* Right-aligned controls */}
         <div className="flex items-center gap-2">
-          <Button onClick={handleAnalyze} variant="outline" disabled={!isPaused || hudData.tick === 0}>
-              <FileText className="mr-2 h-4 w-4" />
-              Analyze
+          <Button
+            onClick={handleAnalyze}
+            variant="outline"
+            disabled={!isPaused || hudData.tick === 0}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Analyze
           </Button>
-          <Button onClick={handleDownloadLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Timeseries (CSV)">
-              <Download className="h-4 w-4" />
+          <Button
+            onClick={handleDownloadLog}
+            variant="outline"
+            size="icon"
+            disabled={!isPaused || hudData.tick === 0}
+            title="Download Timeseries (CSV)"
+          >
+            <Download className="h-4 w-4" />
           </Button>
-           <Button onClick={handleDownloadForageLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Forage Log (CSV)">
-              <Database className="h-4 w-4" />
+          <Button
+            onClick={handleDownloadForageLog}
+            variant="outline"
+            size="icon"
+            disabled={!isPaused || hudData.tick === 0}
+            title="Download Forage Log (CSV)"
+          >
+            <Database className="h-4 w-4" />
           </Button>
-          <Button onClick={handleDownloadSnapshotLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Snapshots (CSV)">
-              <Database className="h-4 w-4" />
+          <Button
+            onClick={handleDownloadSnapshotLog}
+            variant="outline"
+            size="icon"
+            disabled={!isPaused || hudData.tick === 0}
+            title="Download Snapshots (CSV)"
+          >
+            <Database className="h-4 w-4" />
           </Button>
-          <Button onClick={handleDownloadHistLog} variant="outline" size="icon" disabled={!isPaused || hudData.tick === 0} title="Download Histogram Log (CSV)">
-              <BarChart className="h-4 w-4" />
+          <Button
+            onClick={handleDownloadHistLog}
+            variant="outline"
+            size="icon"
+            disabled={!isPaused || hudData.tick === 0}
+            title="Download Histogram Log (CSV)"
+          >
+            <BarChart className="h-4 w-4" />
           </Button>
         </div>
       </div>
-       <AnalysisDialog
+      <AnalysisDialog
         open={isAnalysisDialogOpen}
         onOpenChange={setIsAnalysisDialogOpen}
         analysis={analysisResult}
