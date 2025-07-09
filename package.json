@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "stress": "tsx benchmarks/stress.ts",
+    "format": "prettier --write .",
     "prepare": "husky install"
   },
   "dependencies": {
@@ -79,9 +80,12 @@
     "typescript": "^5"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "prettier --write",
-      "eslint --fix"
+    "src/**/*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "**/*.{json,css,md}": [
+      "prettier --write"
     ]
   }
 }
