@@ -1,4 +1,3 @@
-
 import { SimController } from '../SimController';
 import { World } from '../world';
 import { Renderer } from '../renderer';
@@ -26,7 +25,7 @@ describe('SimController deterministic loop', () => {
     const world = new World();
     const renderer = new Renderer(world, null); // The canvas is null in a test environment.
     const sim = new SimController(world, renderer);
-    
+
     // The main loop is private, so we can't call it directly.
     // Instead, we can check the tickCount after a certain amount of time has passed.
     for (let i = 0; i < 100; i++) {
