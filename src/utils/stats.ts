@@ -6,7 +6,7 @@
 export class RunningStats {
   private n = 0;
   private mean = 0;
-  private M2 = 0;     // sum of squares of differences from the mean
+  private M2 = 0; // sum of squares of differences from the mean
   private _min = +Infinity;
   private _max = -Infinity;
 
@@ -27,23 +27,32 @@ export class RunningStats {
     if (x < this._min) this._min = x;
     if (x > this._max) this._max = x;
   }
-  
+
   /** The number of data points. */
-  get count() { return this.n; }
-  
+  get count() {
+    return this.n;
+  }
+
   /** The running mean. */
-  get avg()   { return this.mean; }
-  
+  get avg() {
+    return this.mean;
+  }
+
   /** The running sample standard deviation. */
-  get sd()    { return this.n > 1 ? Math.sqrt(this.M2 / (this.n - 1)) : 0; }
+  get sd() {
+    return this.n > 1 ? Math.sqrt(this.M2 / (this.n - 1)) : 0;
+  }
 
   /** The minimum value seen so far. Returns 0 if no data has been pushed. */
-  get min()   { return this.n > 0 ? this._min : 0; }
+  get min() {
+    return this.n > 0 ? this._min : 0;
+  }
 
   /** The maximum value seen so far. Returns 0 if no data has been pushed. */
-  get max()   { return this.n > 0 ? this._max : 0; }
+  get max() {
+    return this.n > 0 ? this._max : 0;
+  }
 }
-
 
 /**
  * Calculates the Gini coefficient for a set of values (a measure of inequality).
@@ -62,11 +71,11 @@ export function calculateGini(values: number[]): number {
     sum += sorted[i];
     cum += sum;
   }
-  
+
   // If the total sum is 0, all values must be 0, implying perfect equality.
   if (sum === 0) {
     return 0;
   }
 
-  return (n + 1 - 2 * cum / sum) / n;
+  return (n + 1 - (2 * cum) / sum) / n;
 }
