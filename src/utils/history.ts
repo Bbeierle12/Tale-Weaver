@@ -8,7 +8,7 @@ export const MAX_HISTORY_CHARS = 100_000;
  */
 export function summarizeHistory(
   history: TickStats[],
-  maxChars: number = MAX_HISTORY_CHARS
+  maxChars: number = MAX_HISTORY_CHARS,
 ): { history: TickStats[]; truncated: boolean } {
   if (history.length === 0) return { history, truncated: false };
 
@@ -21,7 +21,11 @@ export function summarizeHistory(
   while (serialize(sampled) > maxChars && step < history.length) {
     step *= 2;
     sampled = history.filter((_, i) => i % step === 0);
-    if (sampled.length > 0 && history.length > 0 && sampled[sampled.length - 1] !== history[history.length - 1]) {
+    if (
+      sampled.length > 0 &&
+      history.length > 0 &&
+      sampled[sampled.length - 1] !== history[history.length - 1]
+    ) {
       sampled.push(history[history.length - 1]);
     }
     truncated = true;
