@@ -50,7 +50,6 @@ interface SpeciesName {
 export function SimulationClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const controllerRef = useRef<SimController | null>(null);
-  const hudIntervalRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
   const [world, setWorld] = useState<World | null>(null);
@@ -88,9 +87,6 @@ export function SimulationClient() {
         // Clean up renderer event listeners
         controllerRef.current.renderer.dispose();
       }
-      if (hudIntervalRef.current) {
-        clearInterval(hudIntervalRef.current);
-      }
 
       setSeed(seedToUse);
       setSeedValue(seedToUse);
@@ -123,14 +119,7 @@ export function SimulationClient() {
       const controller = new SimController(newWorld, renderer);
       controllerRef.current = controller;
 
-      controller.start();
-      if (!controller.paused) {
-        controller.togglePause();
-      }
-      setIsPaused(true);
-      renderer.draw();
-
-      hudIntervalRef.current = setInterval(() => {
+      controller.onTick = () => {
         if (!controllerRef.current || controllerRef.current.paused) return;
         setHudData({
           tick: newWorld.tickCount,
@@ -149,7 +138,14 @@ export function SimulationClient() {
           );
         }
         setColorCounts(newColorCounts);
-      }, 400);
+      };
+
+      controller.start();
+      if (!controller.paused) {
+        controller.togglePause();
+      }
+      setIsPaused(true);
+      renderer.draw();
     },
     [],
   );
@@ -162,17 +158,8 @@ export function SimulationClient() {
   const handleStep = useCallback(() => {
     if (isPaused && controllerRef.current) {
       // Manually advance one tick
-      controllerRef.current.world.step();
-      controllerRef.current.renderer.draw();
-      // Update HUD
-      const newWorld = controllerRef.current.world;
-      setHudData({
-        tick: newWorld.tickCount,
-        alive: newWorld.agents.length,
-        deathsTotal: newWorld.deathsTotal,
-        avgTileFood: newWorld.avgTileFood,
-        avgEnergy: newWorld.avgEnergy,
-      });
+      controllerRef.current.tick();
+      // HUD update will be triggered by the onTick callback
     }
   }, [isPaused]);
 
@@ -284,9 +271,6 @@ export function SimulationClient() {
         controllerRef.current.stop();
         // Clean up renderer event listeners
         controllerRef.current.renderer.dispose();
-      }
-      if (hudIntervalRef.current) {
-        clearInterval(hudIntervalRef.current);
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

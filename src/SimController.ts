@@ -10,6 +10,7 @@ export class SimController {
   private readonly world: World;
   public readonly renderer: Renderer;
   private animationFrameId: number | null = null;
+  public onTick: () => void = () => {};
 
   private _paused = false;
   private _stepOnce = false;
@@ -56,6 +57,7 @@ export class SimController {
     if (this.renderer) {
       this.renderer.draw();
     }
+    this.onTick();
   }
 
   // ————————————————————————————————— private —————————————————————————————————
