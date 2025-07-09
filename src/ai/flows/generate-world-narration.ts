@@ -6,23 +6,26 @@
  * - analyzeSimulation - Generates an analysis based on final simulation stats.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import {
   SimulationAnalysisInputSchema,
   SimulationAnalysisOutputSchema,
 } from '@/ai/schemas';
-import type { SimulationAnalysisInput, SimulationAnalysisOutput } from '@/ai/schemas';
+import type {
+  SimulationAnalysisInput,
+  SimulationAnalysisOutput,
+} from '@/ai/schemas';
 
 export async function analyzeSimulation(
-  input: SimulationAnalysisInput
+  input: SimulationAnalysisInput,
 ): Promise<SimulationAnalysisOutput> {
   return analyzeSimulationFlow(input);
 }
 
 const prompt = ai.definePrompt({
   name: 'analyzeSimulationPrompt',
-  input: {schema: SimulationAnalysisInputSchema},
-  output: {schema: SimulationAnalysisOutputSchema},
+  input: { schema: SimulationAnalysisInputSchema },
+  output: { schema: SimulationAnalysisOutputSchema },
   config: {
     maxOutputTokens: Number(process.env.MAX_OUTPUT_TOKENS ?? 4096),
   },
@@ -78,7 +81,7 @@ const analyzeSimulationFlow = ai.defineFlow(
     outputSchema: SimulationAnalysisOutputSchema,
   },
   async (input) => {
-    const {output} = await prompt(input);
+    const { output } = await prompt(input);
     return output!;
-  }
+  },
 );
