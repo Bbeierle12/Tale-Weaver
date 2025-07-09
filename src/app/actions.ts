@@ -12,26 +12,29 @@ import type { SpeciesNameInput, SpeciesNameOutput } from '@/ai/schemas';
 import { chatAboutSimulation } from '@/ai/flows/simulation-chat-flow';
 
 export async function analyzeSimulationAction(
-  input: SimulationAnalysisInput
+  input: SimulationAnalysisInput,
 ): Promise<SimulationAnalysisOutput> {
   try {
     const result = await analyzeSimulation(input);
     if (!result?.analysis) {
       return {
-        analysis: '## Analysis Failed\n\nThe AI returned an empty analysis. Please try again.',
+        analysis:
+          '## Analysis Failed\n\nThe AI returned an empty analysis. Please try again.',
       };
     }
     return result;
   } catch (error) {
     console.error('Error running simulation analysis:', error);
     return {
-      analysis: `## Analysis Failed\n\nAn error occurred while generating the analysis: ${error instanceof Error ? error.message : 'Unknown error'}`
+      analysis: `## Analysis Failed\n\nAn error occurred while generating the analysis: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
     };
   }
 }
 
 export async function generateSpeciesNameAction(
-  input: SpeciesNameInput
+  input: SpeciesNameInput,
 ): Promise<SpeciesNameOutput> {
   try {
     const result = await generateSpeciesName(input);
@@ -48,7 +51,7 @@ export async function generateSpeciesNameAction(
 }
 
 export async function chatAboutSimulationAction(
-  input: SimulationChatInput
+  input: SimulationChatInput,
 ): Promise<SimulationChatOutput> {
   try {
     const result = await chatAboutSimulation(input);
@@ -61,7 +64,9 @@ export async function chatAboutSimulationAction(
   } catch (error) {
     console.error('Error running simulation chat:', error);
     return {
-      response: `## Chat Failed\n\nAn error occurred while generating the response: ${error instanceof Error ? error.message : 'Unknown error'}`
+      response: `## Chat Failed\n\nAn error occurred while generating the response: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
     };
   }
 }
