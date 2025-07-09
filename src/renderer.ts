@@ -8,7 +8,7 @@ export class Renderer {
   // camera
   private camX = 0;
   private camY = 0;
-  private zoom  = 4;      // pixels per tile
+  private zoom = 4; // pixels per tile
   private dragging = false;
 
   private wheelHandler: (e: WheelEvent) => void;
@@ -18,7 +18,7 @@ export class Renderer {
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private world: World
+    private world: World,
   ) {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D context failed');
@@ -31,11 +31,14 @@ export class Renderer {
     this.wheelHandler = (e: WheelEvent) => {
       e.preventDefault();
       const prev = this.zoom;
-      this.zoom = Math.max(2, Math.min(16, this.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+      this.zoom = Math.max(
+        2,
+        Math.min(16, this.zoom * (e.deltaY < 0 ? 1.1 : 0.9)),
+      );
       // zoom to cursor
       const rect = canvas.getBoundingClientRect();
-      const mx = (e.clientX - rect.left);
-      const my = (e.clientY - rect.top);
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
       const wx = (mx + this.camX) / prev;
       const wy = (my + this.camY) / prev;
       this.camX = wx * this.zoom - mx;
@@ -44,8 +47,12 @@ export class Renderer {
     canvas.addEventListener('wheel', this.wheelHandler);
 
     // drag – pan
-    this.mousedownHandler = () => { this.dragging = true; };
-    this.mouseupHandler = () => { this.dragging = false; };
+    this.mousedownHandler = () => {
+      this.dragging = true;
+    };
+    this.mouseupHandler = () => {
+      this.dragging = false;
+    };
     this.mousemoveHandler = (e: MouseEvent) => {
       if (!this.dragging) return;
       this.camX -= e.movementX;
@@ -65,10 +72,11 @@ export class Renderer {
     const { ctx, world } = this;
     const { width: cw, height: ch } = this.canvas;
 
-    ctx.fillStyle = '#1f2937'; ctx.fillRect(0, 0, cw, ch);
+    ctx.fillStyle = '#1f2937';
+    ctx.fillRect(0, 0, cw, ch);
 
     // clamp camera
-    this.camX = Math.max(0, Math.min(world.width  * this.zoom - cw, this.camX));
+    this.camX = Math.max(0, Math.min(world.width * this.zoom - cw, this.camX));
     this.camY = Math.max(0, Math.min(world.height * this.zoom - ch, this.camY));
 
     // determine visible tiles
@@ -89,9 +97,10 @@ export class Renderer {
         const brightness = food / SIM_CONFIG.foodValue;
         ctx.fillStyle = `rgba(34,197,94,${brightness * 0.75})`;
         ctx.fillRect(
-          (tx * this.zoom) - this.camX,
-          (ty * this.zoom) - this.camY,
-          this.zoom, this.zoom
+          tx * this.zoom - this.camX,
+          ty * this.zoom - this.camY,
+          this.zoom,
+          this.zoom,
         );
       }
     }
