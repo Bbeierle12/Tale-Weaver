@@ -45,7 +45,7 @@ export class Agent {
     y: number,
     energy = 5,
     genome?: Float32Array,
-    lineageId = 0
+    lineageId = 0,
   ) {
     this.x = x;
     this.y = y;
@@ -83,7 +83,7 @@ export class Agent {
   /** Clone this agent with trait-specific mutation. */
   cloneWithMutation(
     world: World,
-    mutationRates = SIM_CONFIG.mutationRates
+    mutationRates = SIM_CONFIG.mutationRates,
   ): Agent {
     const childGenome = new Float32Array(this.genome);
     const deltas = [0, 0, 0];
@@ -114,7 +114,7 @@ export class Agent {
       this.y,
       SIM_CONFIG.birthCost,
       childGenome,
-      lineageId
+      lineageId,
     );
   }
 
