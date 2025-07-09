@@ -2,7 +2,7 @@
  * @fileOverview This file contains the Zod schemas and TypeScript types for AI-related flows.
  */
 
-import {z} from 'zod';
+import { z } from 'zod';
 
 // Schemas for Simulation Analysis
 export const TickStatsSchema = z.object({
@@ -20,22 +20,18 @@ export const TickStatsSchema = z.object({
     .array(z.number())
     .optional()
     .describe(
-      'A 10-bin histogram of agent energy levels, captured periodically. Index 0 is the count for the lowest 10% of the energy range, etc.'
+      'A 10-bin histogram of agent energy levels, captured periodically. Index 0 is the count for the lowest 10% of the energy range, etc.',
     ),
   avgTileFood: z.number().describe('The average food per tile at this tick.'),
   avgTileFoodSD: z
     .number()
     .describe('The standard deviation of food per tile at this tick.'),
-  minTileFood: z
-    .number()
-    .describe('The minimum food on any tile this tick.'),
-  maxTileFood: z
-    .number()
-    .describe('The maximum food on any tile this tick.'),
+  minTileFood: z.number().describe('The minimum food on any tile this tick.'),
+  maxTileFood: z.number().describe('The maximum food on any tile this tick.'),
   foodGini: z
     .number()
     .describe(
-      'The Gini coefficient of food distribution inequality (0=perfect equality, 1=max inequality).'
+      'The Gini coefficient of food distribution inequality (0=perfect equality, 1=max inequality).',
     ),
 });
 export type TickStats = z.infer<typeof TickStatsSchema>;
@@ -56,9 +52,7 @@ export const SimulationAnalysisInputSchema = z.object({
     .describe('The food regrowth rate per second per growth event.'),
   simulationHistory: z
     .array(TickStatsSchema)
-    .describe(
-      'An array of statistics for each tick of the simulation.'
-    ),
+    .describe('An array of statistics for each tick of the simulation.'),
 });
 export type SimulationAnalysisInput = z.infer<
   typeof SimulationAnalysisInputSchema
@@ -67,9 +61,7 @@ export type SimulationAnalysisInput = z.infer<
 export const SimulationAnalysisOutputSchema = z.object({
   analysis: z
     .string()
-    .describe(
-      'A detailed, markdown-formatted analysis of the simulation.'
-    ),
+    .describe('A detailed, markdown-formatted analysis of the simulation.'),
 });
 export type SimulationAnalysisOutput = z.infer<
   typeof SimulationAnalysisOutputSchema
@@ -77,7 +69,9 @@ export type SimulationAnalysisOutput = z.infer<
 
 // Schemas for Species Name Generation
 export const SpeciesNameInputSchema = z.object({
-  color: z.string().describe('The RGB color of the species, e.g., "rgb(123, 45, 67)".'),
+  color: z
+    .string()
+    .describe('The RGB color of the species, e.g., "rgb(123, 45, 67)".'),
 });
 export type SpeciesNameInput = z.infer<typeof SpeciesNameInputSchema>;
 
@@ -87,7 +81,6 @@ export const SpeciesNameOutputSchema = z.object({
 });
 export type SpeciesNameOutput = z.infer<typeof SpeciesNameOutputSchema>;
 
-
 // Schemas for Simulation Chat
 export const MessageSchema = z.object({
   role: z.enum(['user', 'model']),
@@ -96,16 +89,13 @@ export const MessageSchema = z.object({
 export type Message = z.infer<typeof MessageSchema>;
 
 export const SimulationChatInputSchema = SimulationAnalysisInputSchema.extend({
-  messages: z.array(MessageSchema).describe('The history of the conversation so far.'),
+  messages: z
+    .array(MessageSchema)
+    .describe('The history of the conversation so far.'),
 });
 export type SimulationChatInput = z.infer<typeof SimulationChatInputSchema>;
 
-
 export const SimulationChatOutputSchema = z.object({
-  response: z
-    .string()
-    .describe(
-      "The AI assistant's response to the user."
-    ),
+  response: z.string().describe("The AI assistant's response to the user."),
 });
 export type SimulationChatOutput = z.infer<typeof SimulationChatOutputSchema>;
