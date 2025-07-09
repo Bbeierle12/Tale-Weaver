@@ -6,7 +6,7 @@
  * - chatAboutSimulation - A conversational flow to analyze simulation data.
  */
 
-import {ai} from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import {
   SimulationChatInputSchema,
   SimulationChatOutputSchema,
@@ -15,15 +15,15 @@ import {
 } from '@/ai/schemas';
 
 export async function chatAboutSimulation(
-  input: SimulationChatInput
+  input: SimulationChatInput,
 ): Promise<SimulationChatOutput> {
   return simulationChatFlow(input);
 }
 
 const prompt = ai.definePrompt({
   name: 'simulationChatPrompt',
-  input: {schema: SimulationChatInputSchema},
-  output: {schema: SimulationChatOutputSchema},
+  input: { schema: SimulationChatInputSchema },
+  output: { schema: SimulationChatOutputSchema },
   config: {
     maxOutputTokens: Number(process.env.MAX_OUTPUT_TOKENS ?? 4096),
   },
@@ -64,7 +64,7 @@ const simulationChatFlow = ai.defineFlow(
     outputSchema: SimulationChatOutputSchema,
   },
   async (input) => {
-    const {output} = await prompt(input);
+    const { output } = await prompt(input);
     return output!;
-  }
+  },
 );
