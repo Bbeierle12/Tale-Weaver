@@ -5,16 +5,10 @@ import { SIM_CONFIG } from './config';
 import type { World } from './world';
 import { rng } from './utils/random';
 import { mapLinear } from './utils/genetics';
-
-let NEXT_ID = 0;
-
-/** Reset the ID counter for new simulations */
-export function resetAgentId(): void {
-  NEXT_ID = 0;
-}
+import type { SimulationEventBus } from './simulation/event-bus';
 
 export class Agent {
-  readonly id = NEXT_ID++;
+  readonly id: number;
   lineageId: number;
   x: number;
   y: number;
@@ -23,6 +17,7 @@ export class Agent {
   age = 0; // ticks lived
   foodConsumed = 0; // aggregate E eaten
   color: string;
+  private bus: SimulationEventBus;
 
   // Phenotype
   get speed(): number {
@@ -41,14 +36,18 @@ export class Agent {
   foundFood = false;
 
   constructor(
+    id: number,
     x: number,
     y: number,
+    bus: SimulationEventBus,
     energy = 5,
     genome?: Float32Array,
     lineageId = 0,
   ) {
+    this.id = id;
     this.x = x;
     this.y = y;
+    this.bus = bus;
     this.energy = energy;
 
     // -- Genetics --
@@ -68,61 +67,12 @@ export class Agent {
     for (let i = 0; i < g.length; i++) g[i] = rng();
     return g;
   }
-  private static mutate(src: Float32Array): Float32Array {
-    const child = new Float32Array(src);
-    for (let i = 0; i < child.length; i++) {
-      if (rng() < 0.01) {
-        child[i] += (rng() * 2 - 1) * 0.1;
-        // Clamp the gene value to prevent it from going out of the [0, 1] range.
-        child[i] = Math.max(0, Math.min(1, child[i]));
-      }
-    }
-    return child;
-  }
 
-  /** Clone this agent with trait-specific mutation. */
-  cloneWithMutation(
-    world: World,
-    mutationRates = SIM_CONFIG.mutationRates,
-  ): Agent {
-    const childGenome = new Float32Array(this.genome);
-    const deltas = [0, 0, 0];
-    if (rng() < mutationRates.speed) {
-      const d = (rng() * 2 - 1) * 0.1;
-      childGenome[0] = Math.min(1, Math.max(0, childGenome[0] + d));
-      deltas[0] = Math.abs(d);
-    }
-    if (rng() < mutationRates.vision) {
-      const d = (rng() * 2 - 1) * 0.1;
-      childGenome[1] = Math.min(1, Math.max(0, childGenome[1] + d));
-      deltas[1] = Math.abs(d);
-    }
-    if (rng() < mutationRates.basal) {
-      const d = (rng() * 2 - 1) * 0.1;
-      childGenome[2] = Math.min(1, Math.max(0, childGenome[2] + d));
-      deltas[2] = Math.abs(d);
-    }
-
-    let lineageId = this.lineageId;
-    if (deltas.some((d) => d >= SIM_CONFIG.lineageThreshold)) {
-      lineageId = ++world.lineageCounter;
-      world.registerLineage(lineageId, childGenome);
-    }
-
-    return new Agent(
-      this.x,
-      this.y,
-      SIM_CONFIG.birthCost,
-      childGenome,
-      lineageId,
-    );
-  }
-
-  // ───────── per‑tick behaviour — returns a new child if birth occurs
-  tick(world: World): Agent | null {
+  // ───────── per‑tick behaviour
+  tick(world: World): void {
     this.age++;
 
-    // Basal metabolic drain (simplified for this model version)
+    // Basal metabolic drain
     this.energy -= SIM_CONFIG.basalRate;
     world.basalDebit += SIM_CONFIG.basalRate;
 
@@ -136,17 +86,13 @@ export class Agent {
     // Reproduction
     if (this.energy >= SIM_CONFIG.birthThreshold) {
       this.energy -= SIM_CONFIG.birthCost;
-      return this.cloneWithMutation(world);
+      this.bus.emit({ type: 'birth', payload: { parent: this } });
     }
 
     // Death check
     if (this.energy < SIM_CONFIG.deathThreshold) {
-      world.markDeath(this);
-      return null;
+      this.bus.emit({ type: 'death', payload: { agent: this } });
     }
-
-    // Agent survives
-    return this;
   }
 
   private move(dir: number, world: World): void {
@@ -179,7 +125,10 @@ export class Agent {
       const gained = eaten * SIM_CONFIG.foodValue;
       this.energy += gained;
       this.foodConsumed += gained;
-      world.recordForage(world.tickCount, this, gained);
+      this.bus.emit({
+        type: 'food-consumed',
+        payload: { agent: this, amount: gained, x: this.x, y: this.y },
+      });
       this.foundFood = true;
     }
   }

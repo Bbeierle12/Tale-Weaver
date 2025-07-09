@@ -2,7 +2,7 @@
 
 import { Hud } from './hud';
 import { SimController } from '@/SimController';
-import { World } from '@/world';
+import { World, resetAgentId } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -37,8 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { resetAgentId } from '@/Agent';
 import { summarizeHistory } from '@/utils/history';
+import { SimulationEventBus } from '@/simulation/event-bus';
 
 const INITIAL_AGENT_COUNT = 50;
 
@@ -50,6 +50,7 @@ interface SpeciesName {
 export function SimulationClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const controllerRef = useRef<SimController | null>(null);
+  const eventBusRef = useRef<SimulationEventBus | null>(null);
   const { toast } = useToast();
 
   const [world, setWorld] = useState<World | null>(null);
@@ -84,20 +85,24 @@ export function SimulationClient() {
 
       if (controllerRef.current) {
         controllerRef.current.stop();
-        // Clean up renderer event listeners
         controllerRef.current.renderer.dispose();
       }
 
       setSeed(seedToUse);
       setSeedValue(seedToUse);
-      // Note: SIM_CONFIG is readonly, but we can pass the rate to the world constructor if needed
-      // For now, we'll let the world use its default, but this could be a point of extension.
-      // setRegrowthRate(regrowthRateToUse);
 
-      // Reset agent IDs when starting a new world
       resetAgentId();
 
-      const newWorld = new World();
+      // Ensure a single event bus instance is used.
+      if (!eventBusRef.current) {
+        eventBusRef.current = new SimulationEventBus();
+      } else {
+        // Clear old handlers if any
+        eventBusRef.current.off();
+      }
+      const bus = eventBusRef.current;
+
+      const newWorld = new World(bus);
       for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
         newWorld.spawnAgent(rng() * newWorld.width, rng() * newWorld.height);
       }
@@ -120,7 +125,6 @@ export function SimulationClient() {
       controllerRef.current = controller;
 
       controller.onTick = () => {
-        if (!controllerRef.current || controllerRef.current.paused) return;
         setHudData({
           tick: newWorld.tickCount,
           alive: newWorld.agents.length,
@@ -275,6 +279,23 @@ export function SimulationClient() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!isPaused) {
+      const intervalId = setInterval(() => {
+        if (world && controllerRef.current && !controllerRef.current.paused) {
+          setHudData({
+            tick: world.tickCount,
+            alive: world.agents.length,
+            deathsTotal: world.deathsTotal,
+            avgTileFood: world.avgTileFood,
+            avgEnergy: world.avgEnergy,
+          });
+        }
+      }, 400); // Update HUD data less frequently than render loop for performance
+      return () => clearInterval(intervalId);
+    }
+  }, [isPaused, world]);
 
   useEffect(() => {
     if (!colorCounts) return;

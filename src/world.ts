@@ -5,12 +5,23 @@ import { RunningStats, calculateGini } from './utils/stats';
 import { SIM_CONFIG } from './config';
 import { Hist } from './utils/hist';
 import type { LineageMetadata } from './LineageMetrics';
+import type {
+  SimulationEvent,
+  SimulationEventBus,
+} from './simulation/event-bus';
+
+let NEXT_ID = 0;
+export function resetAgentId() {
+  NEXT_ID = 0;
+}
 
 export class World {
   public width: number;
   public height: number;
-  public food: Float32Array; // Made public for renderer
+  public food: Float32Array;
   public agents: Agent[] = [];
+  private bus: SimulationEventBus;
+  private eventQueue: SimulationEvent[] = [];
 
   // Telemetry
   public tickCount = 0;
@@ -58,17 +69,22 @@ export class World {
   // Scratch buffers to avoid GC
   private stepBuf: number[] = [];
 
-  constructor(width = 200, height = 200) {
+  constructor(bus: SimulationEventBus, width = 200, height = 200) {
+    this.bus = bus;
     this.width = width;
     this.height = height;
     this.food = new Float32Array(width * height);
     this.food.fill(0.5); // init food per tile
     this.patchMap = new Float32Array(width * height);
     this.generatePatchMap();
-    // Initialize forageLog with empty objects to avoid resizing
     this.forageLog = new Array(SIM_CONFIG.forageBuf)
       .fill(null)
       .map(() => ({ tick: 0, id: 0, x: 0, y: 0, e: 0 }));
+
+    // Subscribe to events
+    this.bus.on('birth', (e) => this.eventQueue.push(e));
+    this.bus.on('death', (e) => this.eventQueue.push(e));
+    this.bus.on('food-consumed', (e) => this.eventQueue.push(e));
   }
 
   // ───────── utilities
@@ -84,39 +100,6 @@ export class World {
       this.food[i] -= eaten;
     }
     return eaten;
-  }
-
-  public recordForage(tick: number, a: Agent, e: number): void {
-    const entry = this.forageLog[this.foragePtr];
-    entry.tick = tick;
-    entry.id = a.id;
-    entry.x = a.x;
-    entry.y = a.y;
-    entry.e = e;
-    this.foragePtr = (this.foragePtr + 1) % SIM_CONFIG.forageBuf;
-  }
-
-  public getForageData(): readonly {
-    tick: number;
-    id: number;
-    x: number;
-    y: number;
-    e: number;
-  }[] {
-    // Return only the populated part of the ring buffer
-    const populated = this.forageLog
-      .slice(0, this.foragePtr)
-      .filter((e) => e.tick > 0);
-    return populated;
-  }
-
-  public markDeath(agent: Agent): void {
-    this.deaths++;
-    const meta = this.lineageData.get(agent.lineageId);
-    if (meta) {
-      meta.deaths++;
-      meta.deathsTick++;
-    }
   }
 
   private generatePatchMap(): void {
@@ -158,50 +141,114 @@ export class World {
     }
   }
 
+  // ───────── Event Handlers
+  private handleBirth(parent: Agent) {
+    this.births++;
+    const childGenome = this.mutateGenome(parent.genome);
+    let lineageId = parent.lineageId;
+
+    // Simple delta check for lineage branching
+    const deltas = parent.genome.map((g, i) => Math.abs(g - childGenome[i]));
+    if (deltas.some((d) => d >= SIM_CONFIG.lineageThreshold)) {
+      lineageId = ++this.lineageCounter;
+      this.registerLineage(lineageId, childGenome);
+    }
+
+    const child = this.spawnAgent(
+      parent.x,
+      parent.y,
+      SIM_CONFIG.birthCost,
+      childGenome,
+      lineageId,
+    );
+
+    const meta = this.lineageData.get(child.lineageId);
+    if (meta) {
+      meta.births++;
+      meta.birthsTick++;
+    }
+  }
+
+  private handleDeath(agent: Agent) {
+    this.deaths++;
+    const meta = this.lineageData.get(agent.lineageId);
+    if (meta) {
+      meta.deaths++;
+      meta.deathsTick++;
+    }
+  }
+
+  private handleFoodConsumed(
+    agent: Agent,
+    amount: number,
+    x: number,
+    y: number,
+  ) {
+    const entry = this.forageLog[this.foragePtr];
+    entry.tick = this.tickCount;
+    entry.id = agent.id;
+    entry.x = x;
+    entry.y = y;
+    entry.e = amount;
+    this.foragePtr = (this.foragePtr + 1) % SIM_CONFIG.forageBuf;
+  }
+
+  private processEventQueue() {
+    const agentsToCull = new Set<Agent>();
+    // Make a copy to prevent mutation while iterating
+    const queue = [...this.eventQueue];
+    this.eventQueue = [];
+
+    for (const event of queue) {
+      switch (event.type) {
+        case 'birth':
+          this.handleBirth(event.payload.parent);
+          break;
+        case 'death':
+          this.handleDeath(event.payload.agent);
+          agentsToCull.add(event.payload.agent);
+          break;
+        case 'food-consumed':
+          this.handleFoodConsumed(
+            event.payload.agent,
+            event.payload.amount,
+            event.payload.x,
+            event.payload.y,
+          );
+          break;
+      }
+    }
+    if (agentsToCull.size > 0) {
+      this.agents = this.agents.filter((a) => !agentsToCull.has(a));
+    }
+  }
+
   // ───────── main update
   public step(): void {
     this.tickCount++;
     this.births = 0;
     this.deaths = 0;
 
-    // Reset per-tick lineage counters
     for (const meta of this.lineageData.values()) {
       meta.birthsTick = 0;
       meta.deathsTick = 0;
     }
 
-    // Food regrowth
     this.regrow();
 
-    // Tick agents
-    const nextAgents: Agent[] = [];
+    // Agents emit events
     for (const agent of this.agents) {
-      const result = agent.tick(this);
-
-      if (result) {
-        if (result !== agent) {
-          // Birth occurred
-          this.births++;
-          const meta = this.lineageData.get(result.lineageId);
-          if (meta) {
-            meta.births++;
-            meta.birthsTick++;
-          }
-          nextAgents.push(result);
-        }
-        nextAgents.push(agent); // Survivor
-      }
-      // Death is handled by agent.tick() calling world.markDeath()
+      agent.tick(this);
     }
 
-    this.agents = nextAgents;
+    // World processes queued events
+    this.processEventQueue();
+
     this.deathsTotal += this.deaths;
     this.birthsTotal += this.births;
 
-    // Telemetry row
     this.pushSeriesRow();
 
-    // Periodic stats
     if (this.tickCount % SIM_CONFIG.histogramInterval === 0) {
       this.pushLineageStats();
     }
@@ -209,14 +256,45 @@ export class World {
       this.pushSnapshots();
     }
 
-    // Reset agent counters for next tick
     for (const agent of this.agents) {
       agent.resetTickMetrics();
     }
 
-    // Reset per‑tick world debit counters
     this.moveDebit = 0;
     this.basalDebit = 0;
+  }
+
+  // ───────── Getters for data that might be needed by agents but managed by world
+  public getForageData(): readonly {
+    tick: number;
+    id: number;
+    x: number;
+    y: number;
+    e: number;
+  }[] {
+    const populated = this.forageLog
+      .slice(0, this.foragePtr)
+      .filter((e) => e.tick > 0);
+    return populated;
+  }
+
+  private mutateGenome(src: Float32Array): Float32Array {
+    const { speed, vision, basal } = SIM_CONFIG.mutationRates;
+    const childGenome = new Float32Array(src);
+
+    if (rng() < speed) {
+      const d = (rng() * 2 - 1) * 0.1;
+      childGenome[0] = Math.min(1, Math.max(0, childGenome[0] + d));
+    }
+    if (rng() < vision) {
+      const d = (rng() * 2 - 1) * 0.1;
+      childGenome[1] = Math.min(1, Math.max(0, childGenome[1] + d));
+    }
+    if (rng() < basal) {
+      const d = (rng() * 2 - 1) * 0.1;
+      childGenome[2] = Math.min(1, Math.max(0, childGenome[2] + d));
+    }
+    return childGenome;
   }
 
   private pushLineageStats(): void {
@@ -271,11 +349,9 @@ export class World {
     }
   }
 
-  // ───────── telemetry helpers
   private pushSeriesRow(): void {
     const pop = this.agents.length;
 
-    // --- Existing Stats ---
     const energyStats = new RunningStats();
     this.energyHist.reset();
     for (const agent of this.agents) {
@@ -290,7 +366,6 @@ export class World {
     }
     const foodGini = calculateGini(foodValues);
 
-    // ---- New Search & Movement Stats ----
     this.stepBuf.length = pop;
     let sumSteps = 0;
     let sumDist = 0;
@@ -317,7 +392,7 @@ export class World {
 
     let varDist = 0;
     for (const steps of this.stepBuf) {
-      const dDist = steps - meanDist; // Using steps as proxy for distance
+      const dDist = steps - meanDist;
       varDist += dDist * dDist;
     }
     const sdDist = pop > 0 ? Math.sqrt(varDist / pop) : 0;
@@ -423,7 +498,7 @@ export class World {
     lineageId?: number,
   ): Agent {
     const id = lineageId !== undefined ? lineageId : this.lineageCounter++;
-    const agent = new Agent(x, y, energy, genome, id);
+    const agent = new Agent(NEXT_ID++, x, y, this.bus, energy, genome, id);
     if (!this.lineageData.has(id)) {
       this.registerLineage(id, agent.genome);
     }
