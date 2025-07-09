@@ -6,11 +6,11 @@
  */
 
 export interface ForageSample {
-  t: number;      // tick
-  i: number;      // agent id
+  t: number; // tick
+  i: number; // agent id
   x: number;
   y: number;
-  f: number;      // foodEaten
+  f: number; // foodEaten
 }
 
 export interface AgentSnapshot {
