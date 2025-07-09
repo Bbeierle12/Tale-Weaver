@@ -1,4 +1,3 @@
-
 /**
  * Unit tests for World food & agent mechanics.
  */
@@ -39,7 +38,7 @@ describe('World resource simulation', () => {
   it('calculates average metrics correctly', () => {
     const world = new World();
     world.food.fill(SIM_CONFIG.foodValue);
-    
+
     // Test avgTileFood
     expect(world.avgTileFood).toBeCloseTo(SIM_CONFIG.foodValue);
 
