@@ -2,7 +2,7 @@
 
 import { Hud } from './hud';
 import { SimController } from '@/SimController';
-import { World, resetAgentId } from '@/world';
+import { World, resetAgentId, type SimConfig } from '@/world';
 import { Renderer } from '@/renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -29,18 +29,34 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChatView } from './chat-view';
 import { AnalysisDialog } from './analysis-dialog';
-import { SIM_CONFIG } from '@/config';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { summarizeHistory } from '@/utils/history';
 import { SimulationEventBus } from '@/simulation/event-bus';
 
 const INITIAL_AGENT_COUNT = 50;
+
+const getDefaultConfig = (): SimConfig => ({
+  growthRate: 0.15,
+  biteEnergy: 1,
+  foodValue: 10,
+  birthThreshold: 20,
+  birthCost: 9,
+  deathThreshold: 1e-3,
+  moveCostPerStep: 0.02,
+  basalRate: 0.01,
+  histBins: 10,
+  snapshotInterval: 100,
+  forageBuf: 20_000,
+  metricsInterval: 1,
+  hotspotCount: 5,
+  hotspotRadius: 20,
+  mutationRates: {
+    speed: 0.01,
+    vision: 0.01,
+    basal: 0.01,
+  },
+  lineageThreshold: 0.05,
+  histogramInterval: 100,
+});
 
 interface SpeciesName {
   genus: string;
@@ -65,7 +81,7 @@ export function SimulationClient() {
 
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
-  const [regrowthRate, setRegrowthRate] = useState(SIM_CONFIG.growthRate);
+  const [simConfig, setSimConfig] = useState(getDefaultConfig());
   const [colorCounts, setColorCounts] = useState(new Map<string, number>());
   const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(
     new Map(),
@@ -78,40 +94,40 @@ export function SimulationClient() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
-  const resetSimulation = useCallback(
-    (seedToUse: number, regrowthRateToUse: number) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+  const resetSimulation = useCallback((seedToUse: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-      if (controllerRef.current) {
-        controllerRef.current.stop();
-        controllerRef.current.renderer.dispose();
-      }
+    if (controllerRef.current) {
+      controllerRef.current.stop();
+      controllerRef.current.renderer.dispose();
+    }
 
-      setSeed(seedToUse);
-      setSeedValue(seedToUse);
+    setSeed(seedToUse);
+    setSeedValue(seedToUse);
 
-      resetAgentId();
+    resetAgentId();
 
-      // Ensure a single event bus instance is used.
-      if (!eventBusRef.current) {
-        eventBusRef.current = new SimulationEventBus();
-      } else {
-        // Clear old handlers if any
-        eventBusRef.current.off();
-      }
-      const bus = eventBusRef.current;
+    // Ensure a single event bus instance is used.
+    if (!eventBusRef.current) {
+      eventBusRef.current = new SimulationEventBus();
+    } else {
+      // Clear old handlers if any
+      eventBusRef.current.off();
+    }
+    const bus = eventBusRef.current;
 
-      const newWorld = new World(bus);
-      for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
-        newWorld.spawnAgent(rng() * newWorld.width, rng() * newWorld.height);
-      }
-      setWorld(newWorld);
-      setPeakAgentCount(INITIAL_AGENT_COUNT);
-      setColorCounts(new Map());
-      setSpeciesNames(new Map());
-      setPendingNameRequests(new Set());
+    const newWorld = new World(bus, simConfig);
+    for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
+      newWorld.spawnAgent(rng() * newWorld.width, rng() * newWorld.height);
+    }
+    setWorld(newWorld);
+    setPeakAgentCount(INITIAL_AGENT_COUNT);
+    setColorCounts(new Map());
+    setSpeciesNames(new Map());
+    setPendingNameRequests(new Set());
 
+    const updateHud = () => {
       setHudData({
         tick: newWorld.tickCount,
         alive: newWorld.agents.length,
@@ -119,40 +135,34 @@ export function SimulationClient() {
         avgTileFood: newWorld.avgTileFood,
         avgEnergy: newWorld.avgEnergy,
       });
+    };
+    updateHud();
 
-      const renderer = new Renderer(canvas, newWorld);
-      const controller = new SimController(newWorld, renderer);
-      controllerRef.current = controller;
+    const renderer = new Renderer(canvas, newWorld);
+    const controller = new SimController(newWorld, renderer);
+    controllerRef.current = controller;
 
-      controller.onTick = () => {
-        setHudData({
-          tick: newWorld.tickCount,
-          alive: newWorld.agents.length,
-          deathsTotal: newWorld.deathsTotal,
-          avgTileFood: newWorld.avgTileFood,
-          avgEnergy: newWorld.avgEnergy,
-        });
-        setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
+    controller.onTick = () => {
+      updateHud();
+      setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
 
-        const newColorCounts = new Map<string, number>();
-        for (const agent of newWorld.agents) {
-          newColorCounts.set(
-            agent.color,
-            (newColorCounts.get(agent.color) || 0) + 1,
-          );
-        }
-        setColorCounts(newColorCounts);
-      };
-
-      controller.start();
-      if (!controller.paused) {
-        controller.togglePause();
+      const newColorCounts = new Map<string, number>();
+      for (const agent of newWorld.agents) {
+        newColorCounts.set(
+          agent.color,
+          (newColorCounts.get(agent.color) || 0) + 1,
+        );
       }
-      setIsPaused(true);
-      renderer.draw();
-    },
-    [],
-  );
+      setColorCounts(newColorCounts);
+    };
+
+    controller.start();
+    if (!controller.paused) {
+      controller.togglePause();
+    }
+    setIsPaused(true);
+    renderer.draw();
+  }, [simConfig]);
 
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
@@ -257,8 +267,8 @@ export function SimulationClient() {
       ticks: world.tickCount,
       peakAgentCount,
       initialAgentCount: INITIAL_AGENT_COUNT,
-      initialFoodPerTile: SIM_CONFIG.foodValue,
-      regrowthRate: SIM_CONFIG.growthRate,
+      initialFoodPerTile: world.config.foodValue,
+      regrowthRate: world.config.growthRate,
       simulationHistory: prunedHistory,
     };
 
@@ -268,7 +278,7 @@ export function SimulationClient() {
   }, [world, isPaused, peakAgentCount, toast]);
 
   useEffect(() => {
-    resetSimulation(Date.now() % 1_000_000, regrowthRate);
+    resetSimulation(Date.now() % 1_000_000);
 
     return () => {
       if (controllerRef.current) {
@@ -279,23 +289,6 @@ export function SimulationClient() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!isPaused) {
-      const intervalId = setInterval(() => {
-        if (world && controllerRef.current && !controllerRef.current.paused) {
-          setHudData({
-            tick: world.tickCount,
-            alive: world.agents.length,
-            deathsTotal: world.deathsTotal,
-            avgTileFood: world.avgTileFood,
-            avgEnergy: world.avgEnergy,
-          });
-        }
-      }, 400); // Update HUD data less frequently than render loop for performance
-      return () => clearInterval(intervalId);
-    }
-  }, [isPaused, world]);
 
   useEffect(() => {
     if (!colorCounts) return;
@@ -396,8 +389,8 @@ export function SimulationClient() {
               ticks: hudData.tick,
               peakAgentCount: peakAgentCount,
               initialAgentCount: INITIAL_AGENT_COUNT,
-              initialFoodPerTile: SIM_CONFIG.foodValue,
-              regrowthRate: SIM_CONFIG.growthRate,
+              initialFoodPerTile: world?.config.foodValue ?? 0,
+              regrowthRate: world?.config.growthRate ?? 0,
               simulationHistory: world?.history ?? [],
             }}
           />
@@ -426,7 +419,7 @@ export function SimulationClient() {
             <StepForward className="h-4 w-4" />
           </Button>
           <Button
-            onClick={() => resetSimulation(seed, regrowthRate)}
+            onClick={() => resetSimulation(seed)}
             variant="outline"
           >
             <RotateCcw className="mr-2 h-4 w-4" />

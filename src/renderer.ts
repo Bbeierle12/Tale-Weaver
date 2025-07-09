@@ -1,9 +1,9 @@
 import type { Agent } from './Agent';
-import { SIM_CONFIG } from './config';
-import type { World } from './world';
+import type { SimConfig, World } from './world';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
+  private config: SimConfig;
 
   // camera
   private camX = 0;
@@ -23,6 +23,7 @@ export class Renderer {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D context failed');
     this.ctx = ctx;
+    this.config = world.config;
 
     this.resize();
     window.addEventListener('resize', this.resize);
@@ -94,7 +95,7 @@ export class Renderer {
         if (tx >= world.width) break;
         const food = world.food[world.idx(tx, ty)];
         if (food <= 0.01) continue;
-        const brightness = food / SIM_CONFIG.foodValue;
+        const brightness = food / this.config.foodValue;
         ctx.fillStyle = `rgba(34,197,94,${brightness * 0.75})`;
         ctx.fillRect(
           tx * this.zoom - this.camX,

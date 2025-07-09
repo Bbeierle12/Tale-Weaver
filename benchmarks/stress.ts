@@ -3,9 +3,9 @@
 // Outputs stress-summary.csv in project root.
 
 import fs from 'fs';
-import { World } from '../src/world';
-import { SIM_CONFIG } from '../src/config';
+import { World, type SimConfig } from '../src/world';
 import { rng, setSeed } from '../src/utils/random';
+import { SimulationEventBus } from '../src/simulation/event-bus';
 
 interface ParamSet {
   growthRate: number;
@@ -13,6 +13,30 @@ interface ParamSet {
   startPop: number;
   id: string;
 }
+
+const getDefaultConfig = (): SimConfig => ({
+  growthRate: 0.15,
+  biteEnergy: 1,
+  foodValue: 10,
+  birthThreshold: 20,
+  birthCost: 9,
+  deathThreshold: 1e-3,
+  moveCostPerStep: 0.02,
+  basalRate: 0.01,
+  histBins: 10,
+  snapshotInterval: 100,
+  forageBuf: 20_000,
+  metricsInterval: 1,
+  hotspotCount: 5,
+  hotspotRadius: 20,
+  mutationRates: {
+    speed: 0.01,
+    vision: 0.01,
+    basal: 0.01,
+  },
+  lineageThreshold: 0.05,
+  histogramInterval: 100,
+});
 
 // Allow overriding ticks via command line argument, e.g., --ticks=1000
 const ticksArg = process.argv.find((arg) => arg.startsWith('--ticks='));
@@ -42,22 +66,16 @@ const allLineageRows: string[] = [
   'runId,tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths',
 ];
 
-function cloneConfig() {
-  return JSON.parse(JSON.stringify(SIM_CONFIG));
-}
-
 function runOne(ps: ParamSet) {
   // Set a unique seed for each run for determinism
   setSeed(ps.growthRate * 1000 + ps.moveCost * 1000 + ps.startPop);
 
-  const originalConfig = cloneConfig();
-  const cfg = cloneConfig();
-  cfg.growthRate = ps.growthRate;
-  cfg.moveCostPerStep = ps.moveCost;
-  // inject config overrides
-  Object.assign(SIM_CONFIG, cfg);
+  const config = getDefaultConfig();
+  config.growthRate = ps.growthRate;
+  config.moveCostPerStep = ps.moveCost;
 
-  const world = new World();
+  const bus = new SimulationEventBus();
+  const world = new World(bus, config);
   // seed agents
   for (let i = 0; i < ps.startPop; i++) {
     world.spawnAgent(rng() * world.width, rng() * world.height);
@@ -106,9 +124,6 @@ function runOne(ps: ParamSet) {
       .map((row) => `${ps.id},${row}`);
     allLineageRows.push(...runLineageData);
   }
-
-  // Restore original config
-  Object.assign(SIM_CONFIG, originalConfig);
 }
 
 let count = 0;

@@ -1,7 +1,7 @@
 // ────────────────────────────────────────────────────────────────
 // --- src/Agent.ts ----------------------------------------------
 // ────────────────────────────────────────────────────────────────
-import { SIM_CONFIG } from './config';
+import type { SimConfig } from './world';
 import type { World } from './world';
 import { rng } from './utils/random';
 import { mapLinear } from './utils/genetics';
@@ -18,6 +18,7 @@ export class Agent {
   foodConsumed = 0; // aggregate E eaten
   color: string;
   private bus: SimulationEventBus;
+  private config: SimConfig;
 
   // Phenotype
   get speed(): number {
@@ -27,7 +28,7 @@ export class Agent {
     return mapLinear(this.genome[1], 1, 10);
   }
   get basalRateTrait(): number {
-    return mapLinear(this.genome[2], 0.5, 2) * SIM_CONFIG.basalRate;
+    return mapLinear(this.genome[2], 0.5, 2) * this.config.basalRate;
   }
 
   // Per-tick metrics, reset by World
@@ -40,6 +41,7 @@ export class Agent {
     x: number,
     y: number,
     bus: SimulationEventBus,
+    config: SimConfig,
     energy = 5,
     genome?: Float32Array,
     lineageId = 0,
@@ -48,6 +50,7 @@ export class Agent {
     this.x = x;
     this.y = y;
     this.bus = bus;
+    this.config = config;
     this.energy = energy;
 
     // -- Genetics --
@@ -73,8 +76,8 @@ export class Agent {
     this.age++;
 
     // Basal metabolic drain
-    this.energy -= SIM_CONFIG.basalRate;
-    world.basalDebit += SIM_CONFIG.basalRate;
+    this.energy -= this.config.basalRate;
+    world.basalDebit += this.config.basalRate;
 
     // Random walk (von Neumann)
     const dir = Math.floor(rng() * 4);
@@ -84,13 +87,13 @@ export class Agent {
     this.eat(world);
 
     // Reproduction
-    if (this.energy >= SIM_CONFIG.birthThreshold) {
-      this.energy -= SIM_CONFIG.birthCost;
+    if (this.energy >= this.config.birthThreshold) {
+      this.energy -= this.config.birthCost;
       this.bus.emit({ type: 'birth', payload: { parent: this } });
     }
 
     // Death check
-    if (this.energy < SIM_CONFIG.deathThreshold) {
+    if (this.energy < this.config.deathThreshold) {
       this.bus.emit({ type: 'death', payload: { agent: this } });
     }
   }
@@ -113,16 +116,16 @@ export class Agent {
     this.stepsTaken += 1;
     this.distanceTravelled += 1; // Cardinal moves have distance of 1
     // Simplified move cost for this model version
-    this.energy -= SIM_CONFIG.moveCostPerStep;
-    world.moveDebit += SIM_CONFIG.moveCostPerStep;
+    this.energy -= this.config.moveCostPerStep;
+    world.moveDebit += this.config.moveCostPerStep;
   }
 
   /** Called once per tick after move */
   private eat(world: World) {
-    const foodUnits = SIM_CONFIG.biteEnergy / SIM_CONFIG.foodValue;
+    const foodUnits = this.config.biteEnergy / this.config.foodValue;
     const eaten = world.consumeFood(this.x, this.y, foodUnits);
     if (eaten > 0) {
-      const gained = eaten * SIM_CONFIG.foodValue;
+      const gained = eaten * this.config.foodValue;
       this.energy += gained;
       this.foodConsumed += gained;
       this.bus.emit({

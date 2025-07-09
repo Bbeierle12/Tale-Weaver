@@ -2,7 +2,6 @@ import { Agent } from './Agent';
 import type { TickStats } from './ai/schemas';
 import { rng } from './utils/random';
 import { RunningStats, calculateGini } from './utils/stats';
-import { SIM_CONFIG } from './config';
 import { Hist } from './utils/hist';
 import type { LineageMetadata } from './LineageMetrics';
 import type {
@@ -15,6 +14,30 @@ export function resetAgentId() {
   NEXT_ID = 0;
 }
 
+export interface SimConfig {
+  growthRate: number; // food regrowth per tile per tick
+  biteEnergy: number; // E gained per bite
+  foodValue: number; // max E per tile
+  birthThreshold: number; // E required before giving birth
+  birthCost: number; // E transferred to child (and lost by parent)
+  deathThreshold: number; // starvation boundary
+  moveCostPerStep: number; // E lost per tile walked
+  basalRate: number; // E lost per tick for being alive
+  histBins: number; // energy‑histogram resolution
+  snapshotInterval: number; // ticks between snapshots
+  forageBuf: number; // ring‑buffer length
+  metricsInterval: number; // how many ticks between flushing secondary metrics
+  hotspotCount: number; // number of Gaussian growth hotspots
+  hotspotRadius: number; // sigma for hotspot Gaussian
+  mutationRates: {
+    speed: number;
+    vision: number;
+    basal: number;
+  };
+  lineageThreshold: number;
+  histogramInterval: number;
+}
+
 export class World {
   public width: number;
   public height: number;
@@ -22,6 +45,7 @@ export class World {
   public agents: Agent[] = [];
   private bus: SimulationEventBus;
   private eventQueue: SimulationEvent[] = [];
+  public config: SimConfig;
 
   // Telemetry
   public tickCount = 0;
@@ -31,7 +55,7 @@ export class World {
   public birthsTotal = 0; // running total
   public moveDebit = 0;
   public basalDebit = 0;
-  public readonly energyHist = new Hist(SIM_CONFIG.histBins);
+  public readonly energyHist: Hist;
   public readonly forageLog: {
     tick: number;
     id: number;
@@ -44,14 +68,8 @@ export class World {
 
   // CSV Buffers / History
   public history: TickStats[] = []; // For AI analysis - object format
-  public readonly series: string[] = [
-    'tick,pop,births,deaths,meanE,sdE,moveDebit,basalDebit,minFood,maxFood,foodGini,successRate,meanSteps',
-  ];
-  public readonly histRows: string[] = [
-    `tick,${Array.from({ length: SIM_CONFIG.histBins }, (_, i) => `b${i}`).join(
-      ',',
-    )}`,
-  ];
+  public readonly series: string[];
+  public readonly histRows: string[];
   public readonly snapshots: string[] = ['tick,id,x,y,energy,age'];
   public readonly moveStatsRows: string[] = [
     'tick,totalSteps,totalDist,meanSteps,sdSteps,meanDist,sdDist',
@@ -69,17 +87,31 @@ export class World {
   // Scratch buffers to avoid GC
   private stepBuf: number[] = [];
 
-  constructor(bus: SimulationEventBus, width = 200, height = 200) {
+  constructor(
+    bus: SimulationEventBus,
+    config: SimConfig,
+    width = 200,
+    height = 200,
+  ) {
     this.bus = bus;
+    this.config = config;
     this.width = width;
     this.height = height;
     this.food = new Float32Array(width * height);
     this.food.fill(0.5); // init food per tile
     this.patchMap = new Float32Array(width * height);
     this.generatePatchMap();
-    this.forageLog = new Array(SIM_CONFIG.forageBuf)
+    this.forageLog = new Array(this.config.forageBuf)
       .fill(null)
       .map(() => ({ tick: 0, id: 0, x: 0, y: 0, e: 0 }));
+
+    this.energyHist = new Hist(this.config.histBins);
+    this.series = [
+      'tick,pop,births,deaths,meanE,sdE,moveDebit,basalDebit,minFood,maxFood,foodGini,successRate,meanSteps',
+    ];
+    this.histRows = [
+      `tick,${Array.from({ length: this.config.histBins }, (_, i) => `b${i}`).join(',')}`,
+    ];
 
     // Subscribe to events
     this.bus.on('birth', (e) => this.eventQueue.push(e));
@@ -104,13 +136,13 @@ export class World {
 
   private generatePatchMap(): void {
     const centers: { x: number; y: number }[] = [];
-    for (let i = 0; i < SIM_CONFIG.hotspotCount; i++) {
+    for (let i = 0; i < this.config.hotspotCount; i++) {
       centers.push({
         x: Math.floor(rng() * this.width),
         y: Math.floor(rng() * this.height),
       });
     }
-    const sigma = SIM_CONFIG.hotspotRadius;
+    const sigma = this.config.hotspotRadius;
     const denom = 2 * sigma * sigma;
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
@@ -127,8 +159,8 @@ export class World {
   }
 
   private regrow(): void {
-    const rate = SIM_CONFIG.growthRate;
-    const max = SIM_CONFIG.foodValue;
+    const rate = this.config.growthRate;
+    const max = this.config.foodValue;
     for (let n = 0; n < 400; n++) {
       const i = Math.floor(rng() * this.food.length);
       const patch = this.patchMap[i];
@@ -149,7 +181,7 @@ export class World {
 
     // Simple delta check for lineage branching
     const deltas = parent.genome.map((g, i) => Math.abs(g - childGenome[i]));
-    if (deltas.some((d) => d >= SIM_CONFIG.lineageThreshold)) {
+    if (deltas.some((d) => d >= this.config.lineageThreshold)) {
       lineageId = ++this.lineageCounter;
       this.registerLineage(lineageId, childGenome);
     }
@@ -157,7 +189,7 @@ export class World {
     const child = this.spawnAgent(
       parent.x,
       parent.y,
-      SIM_CONFIG.birthCost,
+      this.config.birthCost,
       childGenome,
       lineageId,
     );
@@ -190,7 +222,7 @@ export class World {
     entry.x = x;
     entry.y = y;
     entry.e = amount;
-    this.foragePtr = (this.foragePtr + 1) % SIM_CONFIG.forageBuf;
+    this.foragePtr = (this.foragePtr + 1) % this.config.forageBuf;
   }
 
   private processEventQueue() {
@@ -249,10 +281,10 @@ export class World {
 
     this.pushSeriesRow();
 
-    if (this.tickCount % SIM_CONFIG.histogramInterval === 0) {
+    if (this.tickCount % this.config.histogramInterval === 0) {
       this.pushLineageStats();
     }
-    if (this.tickCount % SIM_CONFIG.snapshotInterval === 0) {
+    if (this.tickCount % this.config.snapshotInterval === 0) {
       this.pushSnapshots();
     }
 
@@ -279,7 +311,7 @@ export class World {
   }
 
   private mutateGenome(src: Float32Array): Float32Array {
-    const { speed, vision, basal } = SIM_CONFIG.mutationRates;
+    const { speed, vision, basal } = this.config.mutationRates;
     const childGenome = new Float32Array(src);
 
     if (rng() < speed) {
@@ -309,7 +341,7 @@ export class World {
     for (const [id, agents] of agentsByLineage.entries()) {
       const meta = this.lineageData.get(id)!;
       const members = agents.length;
-      meta.cumulativeLifeTicks += members * SIM_CONFIG.histogramInterval;
+      meta.cumulativeLifeTicks += members * this.config.histogramInterval;
 
       const speed = new RunningStats();
       const vision = new RunningStats();
@@ -397,7 +429,7 @@ export class World {
     }
     const sdDist = pop > 0 ? Math.sqrt(varDist / pop) : 0;
 
-    if (this.tickCount % SIM_CONFIG.metricsInterval === 0) {
+    if (this.tickCount % this.config.metricsInterval === 0) {
       this.moveStatsRows.push(
         `${this.tickCount},${sumSteps},${sumDist.toFixed(
           2,
@@ -418,7 +450,7 @@ export class World {
       minEnergy: energyStats.min,
       maxEnergy: energyStats.max,
       energyHistogram:
-        this.tickCount % SIM_CONFIG.histogramInterval === 0
+        this.tickCount % this.config.histogramInterval === 0
           ? this.energyHist.toArray()
           : undefined,
       avgTileFood: foodStats.avg,
@@ -498,7 +530,16 @@ export class World {
     lineageId?: number,
   ): Agent {
     const id = lineageId !== undefined ? lineageId : this.lineageCounter++;
-    const agent = new Agent(NEXT_ID++, x, y, this.bus, energy, genome, id);
+    const agent = new Agent(
+      NEXT_ID++,
+      x,
+      y,
+      this.bus,
+      this.config,
+      energy,
+      genome,
+      id,
+    );
     if (!this.lineageData.has(id)) {
       this.registerLineage(id, agent.genome);
     }

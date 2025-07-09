@@ -1,7 +1,8 @@
 import { SimController } from '../SimController';
-import { World } from '../world';
+import { World, type SimConfig } from '../world';
 import { Renderer } from '../renderer';
 import { setSeed } from '../utils/random';
+import { SimulationEventBus } from '../simulation/event-bus';
 
 // Mock the Renderer class since we don't need to test its functionality here.
 jest.mock('../renderer', () => {
@@ -9,9 +10,34 @@ jest.mock('../renderer', () => {
     Renderer: jest.fn().mockImplementation(() => {
       return {
         draw: jest.fn(),
+        dispose: jest.fn(),
       };
     }),
   };
+});
+
+const getTestConfig = (): SimConfig => ({
+  growthRate: 0.1,
+  biteEnergy: 1,
+  foodValue: 10,
+  birthThreshold: 20,
+  birthCost: 10,
+  deathThreshold: 0,
+  moveCostPerStep: 0.01,
+  basalRate: 0.01,
+  histBins: 10,
+  snapshotInterval: 100,
+  forageBuf: 1000,
+  metricsInterval: 1,
+  hotspotCount: 3,
+  hotspotRadius: 15,
+  mutationRates: {
+    speed: 0.01,
+    vision: 0.01,
+    basal: 0.01,
+  },
+  lineageThreshold: 0.05,
+  histogramInterval: 100,
 });
 
 describe('SimController deterministic loop', () => {
@@ -22,8 +48,10 @@ describe('SimController deterministic loop', () => {
   });
 
   it('advances 100 ticks without error', () => {
-    const world = new World();
-    const renderer = new Renderer(world, null); // The canvas is null in a test environment.
+    const bus = new SimulationEventBus();
+    const config = getTestConfig();
+    const world = new World(bus, config);
+    const renderer = new Renderer(null as any, world); // The canvas is null in a test environment.
     const sim = new SimController(world, renderer);
 
     // The main loop is private, so we can't call it directly.
