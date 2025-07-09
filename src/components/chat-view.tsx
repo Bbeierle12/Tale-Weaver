@@ -18,7 +18,8 @@ interface ChatViewProps {
 
 const initialMessage: Message = {
   role: 'model',
-  content: "Hi! I'm SIM-SAGE, your personal analyst powered by Gemini. Pause the simulation and I can answer questions about what's happening on the Game Board."
+  content:
+    "Hi! I'm SIM-SAGE, your personal analyst powered by Gemini. Pause the simulation and I can answer questions about what's happening on the Game Board.",
 };
 
 export function ChatView({ simulationData, isPaused }: ChatViewProps) {
@@ -40,7 +41,10 @@ export function ChatView({ simulationData, isPaused }: ChatViewProps) {
   useEffect(() => {
     if (simulationData.ticks === 0) {
       // Check if the chat is already in its initial state to prevent infinite re-renders.
-      if (messages.length !== 1 || messages[0].content !== initialMessage.content) {
+      if (
+        messages.length !== 1 ||
+        messages[0].content !== initialMessage.content
+      ) {
         setMessages([initialMessage]);
       }
     }
@@ -57,7 +61,7 @@ export function ChatView({ simulationData, isPaused }: ChatViewProps) {
 
     try {
       const { history: prunedHistory, truncated } = summarizeHistory(
-        simulationData.simulationHistory
+        simulationData.simulationHistory,
       );
 
       if (truncated) {
