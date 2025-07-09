@@ -1,65 +1,52 @@
-# Firebase Studio
+# Tale Weaver
 
-This is a NextJS starter in Firebase Studio.
-To get started, take a look at `src/app/page.tsx`.
+Tale Weaver is an AI-powered ecosystem simulator and narrative playground built with Next.js. The app generates dynamic world narration using the current game state and displays it alongside heads‑up information like score and level.
 
-## Getting Started
+![screenshot](./screenshot.png)
 
-Install dependencies:
+## Features
+
+- **World Narration** – AI describes the evolving game world.
+- **Adaptive Narration** – game state is fed back into the model for personalized stories.
+- **Narrative Display** – snippets appear in a dedicated narrator panel.
+- **Game Status HUD** – essential info like score and level stays visible.
+- **Benchmark Tools** – run stress tests via the `benchmarks` folder.
+
+## Setup
 
 ```bash
 npm install
-```
-
-Run the development server:
-
-```bash
 npm run dev
 ```
 
-The app is served on port 9002 by default.
+The development server runs on port 9002.
 
-## Building
+## Usage
 
-Create a production build with:
+Create a production build:
 
 ```bash
 npm run build
 ```
 
-Start the built server using:
+Start the built server:
 
 ```bash
 npm run start
 ```
 
-## Testing
-
-Execute the Jest test suite:
+Run tests:
 
 ```bash
 npm test
 ```
 
-## Useful npm scripts
-
-Aside from `dev`, `build`, and `start`, the project exposes additional scripts in `package.json`:
-
-- `genkit:dev` – launch Genkit in development mode.
-- `genkit:watch` – start Genkit with watch enabled.
-- `lint` – run ESLint checks.
-- `typecheck` – run the TypeScript compiler without emitting files.
-- `test` – run unit tests.
-- `stress` – execute stress benchmarks in `bench/stress.ts`.
-
-Consult `package.json` for the full list and details.
-
-## Lineage Fitness Metrics
-
-Running `npm run stress` now produces `lineage.csv` and `lineageFitness.csv` summarising per-lineage statistics. Example analysis:
+Format all files:
 
 ```bash
-tsx bench/lineageReport.ts --input lineage.csv
+npm run format
 ```
 
-See `docs/lineage-fitness.md` for details.
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
