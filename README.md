@@ -21,6 +21,12 @@ npm run dev
 
 The development server runs on port 9002.
 
+## Project Structure
+
+Next.js now looks for its App Router under `src/app/`. The previous `app/`
+directory has been moved to `legacy-app/` and is no longer used by the
+framework.
+
 ## Usage
 
 Create a production build:
