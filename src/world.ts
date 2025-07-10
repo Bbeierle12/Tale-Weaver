@@ -88,10 +88,6 @@ export class World {
     const eaten = Math.min(available, units);
     if (eaten > 0) {
       this.food[i] -= eaten;
-      this.bus.emit({
-        type: 'food-consumed',
-        payload: { tick: this.tickCount, amount: eaten, x: tx, y: ty, agent: null as any }, // Agent added in agent.ts
-      });
     }
     return eaten;
   }
