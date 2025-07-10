@@ -1,5 +1,10 @@
-import { SimulationClient } from '@/components/game-client';
+import RootLayout from './root-layout';
+import Index from './index';
 
-export default function Home() {
-  return <SimulationClient />;
+export default function Page() {
+  return (
+    <RootLayout>
+      <Index />
+    </RootLayout>
+  );
 }
