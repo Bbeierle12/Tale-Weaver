@@ -1,3 +1,4 @@
+
 // ────────────────────────────────────────────────────────────────
 // --- src/Agent.ts ----------------------------------------------
 // ────────────────────────────────────────────────────────────────
@@ -56,17 +57,18 @@ export class Agent {
     this.energy -= this.speciesDef.basalMetabolicRate;
     world.basalDebit += this.speciesDef.basalMetabolicRate;
 
-    // Core behaviors are delegated to the species definition
+    // Behaviors are now called directly from the World's step method
     this.speciesDef.behavior.move(this, world);
 
-    // For omnivores and prey, the target is the tile they are on.
-    // For predators, this will be handled within their move/eat logic.
-    const target = world.getTile(this.x, this.y);
-    this.speciesDef.behavior.eat(this, target, world);
+    const targetTile = world.getTile(this.x, this.y);
+    this.speciesDef.behavior.eat(this, targetTile, world);
+
+    // For predators, the World loop will check for agents on the same tile
+    // and call eat again with the agent as the target.
 
     this.speciesDef.behavior.reproduce(this, world);
 
-    // Universal death check
+    // Universal death check, called from World after all actions
     if (this.energy < this.speciesDef.deathThreshold) {
       this.bus.emit({ type: 'death', payload: { agent: this } });
     }

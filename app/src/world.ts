@@ -79,7 +79,7 @@ export class World {
     return this.bus;
   }
 
-  private idx(x: number, y: number): number {
+  public idx(x: number, y: number): number {
     return (y | 0) * this.width + (x | 0);
   }
 
@@ -262,8 +262,41 @@ export class World {
 
     this.regrow();
 
+    // Create a map of agent locations for efficient lookup
+    const agentGrid = new Map<string, Agent[]>();
     for (const agent of this.agents) {
-      agent.tick(this);
+      const key = `${agent.x},${agent.y}`;
+      if (!agentGrid.has(key)) {
+        agentGrid.set(key, []);
+      }
+      agentGrid.get(key)!.push(agent);
+    }
+    
+    // Main agent loop
+    for (const agent of this.agents) {
+      agent.age++;
+      agent.energy -= agent.speciesDef.basalMetabolicRate;
+      this.basalDebit += agent.speciesDef.basalMetabolicRate;
+
+      const { behavior } = agent.speciesDef;
+      behavior.move(agent, this);
+
+      // Handle eating based on what's on the agent's new tile
+      const currentTile = this.getTile(agent.x, agent.y);
+      behavior.eat(agent, currentTile, this); // Attempt to eat ground food
+      
+      const agentsOnTile = agentGrid.get(`${agent.x},${agent.y}`) || [];
+      for (const other of agentsOnTile) {
+          if (agent.id !== other.id) {
+              behavior.eat(agent, other, this); // Attempt to eat other agent
+          }
+      }
+
+      behavior.reproduce(agent, this);
+
+      if (agent.energy < agent.speciesDef.deathThreshold) {
+        this.bus.emit({ type: 'death', payload: { agent } });
+      }
     }
 
     this.processEventQueue();

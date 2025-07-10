@@ -116,7 +116,7 @@ const OMNIVORE_BEHAVIOR: AgentBehavior = {
 
   eat: (agent, target, world) => {
     // This omnivore only eats from the ground.
-    if ('food' in target) {
+    if (isFood(target)) {
       const foodUnits = agent.speciesDef.biteEnergy / world.config.foodValue;
       const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
       if (eaten > 0) {
@@ -150,14 +150,10 @@ const PREDATOR_BEHAVIOR: AgentBehavior = {
     }
   },
   eat(agent, target, world) {
-    const prey = world.findNearestAgent(
-      agent,
-      (a) => a.speciesDef.key === SpeciesType.PREY && a.x === agent.x && a.y === agent.y,
-      0,
-    );
-    if (prey) {
-      world.killAgent(prey);
-      agent.energy += prey.energy; // full energy transfer
+    // Predator only eats other agents, specifically Prey
+    if (isAgent(target) && target.speciesDef.key === SpeciesType.PREY) {
+      world.killAgent(target);
+      agent.energy += target.energy; // full energy transfer
       agent.foundFood = true;
     }
   },
@@ -183,6 +179,7 @@ const PREY_BEHAVIOR: AgentBehavior = {
     }
   },
   eat(agent, target, world) {
+    // Prey only eats from the ground
     if (isFood(target)) {
       const foodUnits = agent.speciesDef.biteEnergy / world.config.foodValue;
       const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
