@@ -68,7 +68,7 @@ export class World {
     this.height = height;
     this.food = new Float32Array(width * height);
     this.corpses = new Float32Array(width * height);
-    this.food.fill(0.5); // init food per tile
+    this.food.fill(config.foodValue); // init food per tile
     this.patchMap = new Float32Array(width * height);
     this.generatePatchMap();
 

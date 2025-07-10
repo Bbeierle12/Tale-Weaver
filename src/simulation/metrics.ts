@@ -222,7 +222,7 @@ export class HistoryPlugin implements MetricsPlugin {
 export class LineagePlugin implements MetricsPlugin {
   name = 'lineage';
   public lineageRows: string[] = [
-    'tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths',
+    'tick,lineageId,members,meanEnergy,births,deaths',
   ];
   public lineageFitnessRows: string[] = ['lineageId,fitness'];
 
@@ -251,20 +251,15 @@ export class LineagePlugin implements MetricsPlugin {
       meta.cumulativeLifeTicks += members * config.histogramInterval;
 
       const energy = new RunningStats();
-      const traitStats: RunningStats[] = lineageAgents[0].genome.map(() => new RunningStats());
 
       for (const agent of lineageAgents) {
         energy.push(agent.energy);
-        agent.genome.forEach((gene, i) => {
-            traitStats[i].push(gene);
-        });
       }
 
       const row = [
         tick,
         id,
         members,
-        ...traitStats.map(stats => stats.avg.toFixed(3)),
         energy.avg.toFixed(3),
         meta.birthsTick,
         meta.deathsTick,

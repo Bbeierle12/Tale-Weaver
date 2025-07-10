@@ -1,11 +1,10 @@
 import { World, type SimConfig } from '../../world';
 import { setSeed, rng } from '../../utils/random';
-import { RunningStats } from '../../utils/stats';
 import { SimulationEventBus } from '../../simulation/event-bus';
+import { SpeciesType } from '@/species';
 
 const getTestConfig = (): SimConfig => ({
   growthRate: 0.15,
-  biteEnergy: 1,
   foodValue: 10,
   birthThreshold: 20,
   birthCost: 9,
@@ -36,7 +35,7 @@ test('lineage diversification and fitness', () => {
     // Use the deterministic RNG to avoid flakey tests
     const x = Math.floor(rng() * world.width);
     const y = Math.floor(rng() * world.height);
-    world.spawnAgent(x, y, 15);
+    world.spawnAgent(SpeciesType.OMNIVORE, x, y, 15);
   }
   for (let t = 0; t < 2000; t++) world.step();
   world.finalizeLineages();
