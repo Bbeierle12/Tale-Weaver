@@ -59,17 +59,53 @@ export class Agent {
     // Core behaviors are delegated to the species definition
     this.speciesDef.behavior.move(this, world);
 
-    // For omnivores, the target is always the tile they are on.
-    // This logic would be more complex for predators.
+    // For omnivores and prey, the target is the tile they are on.
+    // For predators, this will be handled within their move/eat logic.
     const target = world.getTile(this.x, this.y);
     this.speciesDef.behavior.eat(this, target, world);
-    
+
     this.speciesDef.behavior.reproduce(this, world);
 
     // Universal death check
     if (this.energy < this.speciesDef.deathThreshold) {
       this.bus.emit({ type: 'death', payload: { agent: this } });
     }
+  }
+
+  moveToward(target: { x: number; y: number }, world: World): void {
+    const dx = target.x - this.x;
+    const dy = target.y - this.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.x += Math.sign(dx);
+    } else {
+      this.y += Math.sign(dy);
+    }
+    this.x = (this.x + world.width) % world.width;
+    this.y = (this.y + world.height) % world.height;
+
+    this.stepsTaken += 1;
+    this.distanceTravelled += 1;
+    this.energy -= this.speciesDef.movementCost;
+    world.moveDebit += this.speciesDef.movementCost;
+  }
+
+  moveAway(target: { x: number; y: number }, world: World): void {
+    const dx = this.x - target.x;
+    const dy = this.y - target.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.x += Math.sign(dx);
+    } else {
+      this.y += Math.sign(dy);
+    }
+    this.x = (this.x + world.width) % world.width;
+    this.y = (this.y + world.height) % world.height;
+
+    this.stepsTaken += 1;
+    this.distanceTravelled += 1;
+    this.energy -= this.speciesDef.movementCost;
+    world.moveDebit += this.speciesDef.movementCost;
   }
 
   /** World calls this after it has harvested the counters. */

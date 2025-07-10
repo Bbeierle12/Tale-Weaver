@@ -9,6 +9,8 @@ import type { Tile, World } from './world';
 /** A unique identifier for a species type. */
 export enum SpeciesType {
   OMNIVORE = 'omnivore',
+  PREDATOR = 'predator',
+  PREY = 'prey',
 }
 
 /** Defines the signature for a function that mutates an agent's genome. */
@@ -33,6 +35,19 @@ export interface AgentBehavior {
   reproduce(agent: Agent, world: World): void;
 }
 
+/**
+ * A type guard to check if a target is an Agent.
+ */
+function isAgent(target: Tile | Agent): target is Agent {
+  return (target as Agent).speciesDef !== undefined;
+}
+
+/**
+ * A type guard to check if a target is a Tile with food.
+ */
+function isFood(target: Tile | Agent): target is Tile {
+  return 'food' in target;
+}
 
 /**
  * The data contract that every species must fulfill. This allows for a
@@ -50,13 +65,29 @@ export interface SpeciesDefinition {
   birthCost: number;
   deathThreshold: number;
   biteEnergy: number; // Energy gained per bite (before food value multiplier)
+  huntingRadius?: number; // Optional radius for hunting
   // --- Behavior hooks ---
   behavior: AgentBehavior;
   mutationFn: MutationFn;
 }
 
+const defaultMutation: MutationFn = (genome: Float32Array): Float32Array => {
+  const childGenome = new Float32Array(genome);
+  // Simple point mutation on a random gene
+  if (rng() < 0.1) {
+    // 10% mutation chance per birth
+    const geneIndex = Math.floor(rng() * childGenome.length);
+    const mutationAmount = (rng() * 2 - 1) * 0.1; // Small change
+    childGenome[geneIndex] = Math.min(
+      1,
+      Math.max(0, childGenome[geneIndex] + mutationAmount),
+    );
+  }
+  return childGenome;
+};
+
 // -----------------------------------------------------------------------------
-// --- Default Omnivore Species Definition -------------------------------------
+// --- Behavior Definitions ----------------------------------------------------
 // -----------------------------------------------------------------------------
 
 const OMNIVORE_BEHAVIOR: AgentBehavior = {
@@ -84,10 +115,9 @@ const OMNIVORE_BEHAVIOR: AgentBehavior = {
   },
 
   eat: (agent, target, world) => {
-    // This omnivore only eats from the ground, so it ignores Agent targets.
-    if ('food' in target) { // It's a Tile
-      const foodUnits =
-        agent.speciesDef.biteEnergy / world.config.foodValue;
+    // This omnivore only eats from the ground.
+    if ('food' in target) {
+      const foodUnits = agent.speciesDef.biteEnergy / world.config.foodValue;
       const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
       if (eaten > 0) {
         const gained = eaten * world.config.foodValue;
@@ -106,21 +136,79 @@ const OMNIVORE_BEHAVIOR: AgentBehavior = {
   },
 };
 
-
-const OMNIVORE_MUTATION: MutationFn = (genome: Float32Array): Float32Array => {
-  const childGenome = new Float32Array(genome);
-  // Simple point mutation on a random gene
-  if (rng() < 0.1) { // 10% mutation chance per birth
-    const geneIndex = Math.floor(rng() * childGenome.length);
-    const mutationAmount = (rng() * 2 - 1) * 0.1; // Small change
-    childGenome[geneIndex] = Math.min(1, Math.max(0, childGenome[geneIndex] + mutationAmount));
-  }
-  return childGenome;
+const PREDATOR_BEHAVIOR: AgentBehavior = {
+  move(agent, world) {
+    const prey = world.findNearestAgent(
+      agent,
+      (a) => a.speciesDef.key === SpeciesType.PREY,
+      agent.speciesDef.huntingRadius!,
+    );
+    if (prey) {
+      agent.moveToward(prey, world);
+    } else {
+      agent.moveToward(world.randomAdjacent(agent), world); // wander
+    }
+  },
+  eat(agent, target, world) {
+    const prey = world.findNearestAgent(
+      agent,
+      (a) => a.speciesDef.key === SpeciesType.PREY && a.x === agent.x && a.y === agent.y,
+      0,
+    );
+    if (prey) {
+      world.killAgent(prey);
+      agent.energy += prey.energy; // full energy transfer
+      agent.foundFood = true;
+    }
+  },
+  reproduce(agent, world) {
+    if (agent.energy >= agent.speciesDef.birthThreshold) {
+      agent.energy -= agent.speciesDef.birthCost; // Use defined birth cost
+      world.getBus().emit({ type: 'birth', payload: { parent: agent } });
+    }
+  },
 };
+
+const PREY_BEHAVIOR: AgentBehavior = {
+  move(agent, world) {
+    const threat = world.findNearestAgent(
+      agent,
+      (a) => a.speciesDef.key === SpeciesType.PREDATOR,
+      3,
+    );
+    if (threat) {
+      agent.moveAway(threat, world);
+    } else {
+      agent.moveToward(world.randomAdjacent(agent), world); // wander
+    }
+  },
+  eat(agent, target, world) {
+    if (isFood(target)) {
+      const foodUnits = agent.speciesDef.biteEnergy / world.config.foodValue;
+      const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
+      if (eaten > 0) {
+        const gained = eaten * world.config.foodValue;
+        agent.energy += gained;
+        agent.foodConsumed += gained;
+        agent.foundFood = true;
+      }
+    }
+  },
+  reproduce(agent, world) {
+    if (agent.energy >= agent.speciesDef.birthThreshold) {
+      agent.energy -= agent.speciesDef.birthCost;
+      world.getBus().emit({ type: 'birth', payload: { parent: agent } });
+    }
+  },
+};
+
+// -----------------------------------------------------------------------------
+// --- Species Definitions -----------------------------------------------------
+// -----------------------------------------------------------------------------
 
 const OMNIVORE_DEFINITION: SpeciesDefinition = {
   key: SpeciesType.OMNIVORE,
-  genomeLength: 3, // Corresponds to RGB color for now
+  genomeLength: 3,
   color: 'rgb(200, 200, 200)',
   basalMetabolicRate: 0.01,
   movementCost: 0.02,
@@ -129,7 +217,36 @@ const OMNIVORE_DEFINITION: SpeciesDefinition = {
   deathThreshold: 1e-3,
   biteEnergy: 1,
   behavior: OMNIVORE_BEHAVIOR,
-  mutationFn: OMNIVORE_MUTATION,
+  mutationFn: defaultMutation,
+};
+
+const PREDATOR_DEFINITION: SpeciesDefinition = {
+  key: SpeciesType.PREDATOR,
+  genomeLength: 3,
+  color: 'rgb(255, 100, 100)',
+  basalMetabolicRate: 0.02,
+  movementCost: 0.04,
+  birthThreshold: 30,
+  birthCost: 15,
+  deathThreshold: 1e-3,
+  biteEnergy: 0, // Gets energy from eating prey
+  huntingRadius: 15,
+  behavior: PREDATOR_BEHAVIOR,
+  mutationFn: defaultMutation,
+};
+
+const PREY_DEFINITION: SpeciesDefinition = {
+  key: SpeciesType.PREY,
+  genomeLength: 3,
+  color: 'rgb(100, 255, 100)',
+  basalMetabolicRate: 0.008,
+  movementCost: 0.015,
+  birthThreshold: 15,
+  birthCost: 7,
+  deathThreshold: 1e-3,
+  biteEnergy: 1.2,
+  behavior: PREY_BEHAVIOR,
+  mutationFn: defaultMutation,
 };
 
 // -----------------------------------------------------------------------------
@@ -139,4 +256,6 @@ const OMNIVORE_DEFINITION: SpeciesDefinition = {
 /** A central registry to store and retrieve species definitions by their key. */
 export const SPECIES_REGISTRY = new Map<SpeciesType, SpeciesDefinition>([
   [SpeciesType.OMNIVORE, OMNIVORE_DEFINITION],
+  [SpeciesType.PREDATOR, PREDATOR_DEFINITION],
+  [SpeciesType.PREY, PREY_DEFINITION],
 ]);

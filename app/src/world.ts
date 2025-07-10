@@ -82,7 +82,7 @@ export class World {
   private idx(x: number, y: number): number {
     return (y | 0) * this.width + (x | 0);
   }
-  
+
   public getTile(x: number, y: number): Tile {
     const i = this.idx(x, y);
     return { x, y, food: this.food[i] };
@@ -175,6 +175,44 @@ export class World {
       meta.birthsTick++;
     }
   }
+
+  public killAgent(agent: Agent) {
+    this.bus.emit({ type: 'death', payload: { agent } });
+  }
+
+  public findNearestAgent(
+    sourceAgent: Agent,
+    filter: (agent: Agent) => boolean,
+    radius: number,
+  ): Agent | null {
+    let nearestAgent: Agent | null = null;
+    let minDistanceSq = radius * radius;
+
+    for (const agent of this.agents) {
+      if (agent.id === sourceAgent.id || !filter(agent)) {
+        continue;
+      }
+
+      const dx = agent.x - sourceAgent.x;
+      const dy = agent.y - sourceAgent.y;
+      const distanceSq = dx * dx + dy * dy;
+
+      if (distanceSq < minDistanceSq) {
+        minDistanceSq = distanceSq;
+        nearestAgent = agent;
+      }
+    }
+
+    return nearestAgent;
+  }
+
+  public randomAdjacent(agent: Agent) {
+    return {
+      x: (agent.x + Math.floor(rng() * 3) - 1 + this.width) % this.width,
+      y: (agent.y + Math.floor(rng() * 3) - 1 + this.height) % this.height,
+    };
+  }
+
 
   private handleDeath(agent: Agent) {
     this.deathsThisTick++;

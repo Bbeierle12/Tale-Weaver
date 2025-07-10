@@ -40,7 +40,8 @@ import {
 } from '@/simulation/metrics';
 import { SpeciesType } from '@/species';
 
-const INITIAL_AGENT_COUNT = 50;
+const INITIAL_PREY_COUNT = 40;
+const INITIAL_PREDATOR_COUNT = 10;
 
 const getDefaultConfig = (): SimConfig => ({
   growthRate: 0.15,
@@ -123,16 +124,24 @@ export function SimulationClient() {
       metrics.register(new SnapshotPlugin());
       metricsCollectorRef.current = metrics;
 
-      // Seed world
-      for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
+      // Seed world with prey and predators
+      for (let i = 0; i < INITIAL_PREY_COUNT; i++) {
         newWorld.spawnAgent(
-          SpeciesType.OMNIVORE,
+          SpeciesType.PREY,
+          rng() * newWorld.width,
+          rng() * newWorld.height,
+        );
+      }
+      for (let i = 0; i < INITIAL_PREDATOR_COUNT; i++) {
+        newWorld.spawnAgent(
+          SpeciesType.PREDATOR,
           rng() * newWorld.width,
           rng() * newWorld.height,
         );
       }
       setWorld(newWorld);
-      setPeakAgentCount(INITIAL_AGENT_COUNT);
+      const initialAgentCount = INITIAL_PREDATOR_COUNT + INITIAL_PREY_COUNT;
+      setPeakAgentCount(initialAgentCount);
       setLineageSpecies(new Map());
       setPendingNameRequests(new Set());
       setLineageCounts(new Map());
@@ -294,7 +303,7 @@ export function SimulationClient() {
     const analysisInput = {
       ticks: world.tickCount,
       peakAgentCount,
-      initialAgentCount: INITIAL_AGENT_COUNT,
+      initialAgentCount: INITIAL_PREDATOR_COUNT + INITIAL_PREY_COUNT,
       initialFoodPerTile: world.config.foodValue,
       regrowthRate: world.config.growthRate,
       simulationHistory: prunedHistory,
@@ -430,7 +439,7 @@ export function SimulationClient() {
             simulationData={{
               ticks: hudData.tick,
               peakAgentCount: peakAgentCount,
-              initialAgentCount: INITIAL_AGENT_COUNT,
+              initialAgentCount: INITIAL_PREY_COUNT + INITIAL_PREDATOR_COUNT,
               initialFoodPerTile: world?.config.foodValue ?? 0,
               regrowthRate: world?.config.growthRate ?? 0,
               simulationHistory: historyPlugin?.history ?? [],
