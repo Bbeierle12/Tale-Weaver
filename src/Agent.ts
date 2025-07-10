@@ -130,7 +130,7 @@ export class Agent {
       this.foodConsumed += gained;
       this.bus.emit({
         type: 'food-consumed',
-        payload: { agent: this, amount: gained, x: this.x, y: this.y },
+        payload: { tick: world.tickCount, agent: this, amount: gained, x: this.x, y: this.y },
       });
       this.foundFood = true;
     }

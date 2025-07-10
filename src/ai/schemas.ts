@@ -3,8 +3,11 @@
  */
 
 import { z } from 'zod';
+import type { TickStats } from '@/simulation/metrics';
 
-// Schemas for Simulation Analysis
+// The Zod schema for TickStats needs to match the data structure from the metrics plugin.
+// We can't import the TypeScript type directly into this Zod definition file,
+// so we redefine it here for validation and AI flow input/output.
 export const TickStatsSchema = z.object({
   tick: z.number().describe('The simulation tick number.'),
   population: z.number().describe('The number of agents alive at this tick.'),
@@ -34,7 +37,7 @@ export const TickStatsSchema = z.object({
       'The Gini coefficient of food distribution inequality (0=perfect equality, 1=max inequality).',
     ),
 });
-export type TickStats = z.infer<typeof TickStatsSchema>;
+
 
 export const SimulationAnalysisInputSchema = z.object({
   ticks: z.number().describe('The total number of ticks the simulation ran.'),

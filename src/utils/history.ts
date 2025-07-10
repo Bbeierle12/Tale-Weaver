@@ -1,4 +1,4 @@
-import type { TickStats } from '@/ai/schemas';
+import type { TickStats } from '@/simulation/metrics';
 
 export const MAX_HISTORY_CHARS = 100_000;
 

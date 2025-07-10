@@ -10,6 +10,7 @@ import { Bot, User, Send, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { summarizeHistory } from '@/utils/history';
+import type { TickStats } from '@/simulation/metrics';
 
 interface ChatViewProps {
   simulationData: Omit<SimulationChatInput, 'messages'>;
@@ -61,7 +62,7 @@ export function ChatView({ simulationData, isPaused }: ChatViewProps) {
 
     try {
       const { history: prunedHistory, truncated } = summarizeHistory(
-        simulationData.simulationHistory,
+        simulationData.simulationHistory as TickStats[],
       );
 
       if (truncated) {

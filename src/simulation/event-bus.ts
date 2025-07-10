@@ -11,7 +11,7 @@ export type SimulationEvent =
   | { type: 'death'; payload: { agent: Agent } }
   | {
       type: 'food-consumed';
-      payload: { agent: Agent; amount: number; x: number; y: number };
+      payload: { tick: number, agent: Agent; amount: number; x: number; y: number };
     };
 
 // 2) Event handler signature

@@ -31,6 +31,13 @@ import { ChatView } from './chat-view';
 import { AnalysisDialog } from './analysis-dialog';
 import { summarizeHistory } from '@/utils/history';
 import { SimulationEventBus } from '@/simulation/event-bus';
+import {
+  HistoryPlugin,
+  LineagePlugin,
+  MetricsCollector,
+  ForagePlugin,
+  SnapshotPlugin,
+} from '@/simulation/metrics';
 
 const INITIAL_AGENT_COUNT = 50;
 
@@ -45,7 +52,6 @@ const getDefaultConfig = (): SimConfig => ({
   basalRate: 0.01,
   histBins: 10,
   snapshotInterval: 100,
-  forageBuf: 20_000,
   metricsInterval: 1,
   hotspotCount: 5,
   hotspotRadius: 20,
@@ -67,6 +73,8 @@ export function SimulationClient() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const controllerRef = useRef<SimController | null>(null);
   const eventBusRef = useRef<SimulationEventBus | null>(null);
+  const metricsCollectorRef = useRef<MetricsCollector | null>(null);
+
   const { toast } = useToast();
 
   const [world, setWorld] = useState<World | null>(null);
@@ -94,75 +102,86 @@ export function SimulationClient() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
-  const resetSimulation = useCallback((seedToUse: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const resetSimulation = useCallback(
+    (seedToUse: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    if (controllerRef.current) {
-      controllerRef.current.stop();
-      controllerRef.current.renderer.dispose();
-    }
-
-    setSeed(seedToUse);
-    setSeedValue(seedToUse);
-
-    resetAgentId();
-
-    // Ensure a single event bus instance is used.
-    if (!eventBusRef.current) {
-      eventBusRef.current = new SimulationEventBus();
-    } else {
-      // Clear old handlers if any
-      eventBusRef.current.off();
-    }
-    const bus = eventBusRef.current;
-
-    const newWorld = new World(bus, simConfig);
-    for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
-      newWorld.spawnAgent(rng() * newWorld.width, rng() * newWorld.height);
-    }
-    setWorld(newWorld);
-    setPeakAgentCount(INITIAL_AGENT_COUNT);
-    setColorCounts(new Map());
-    setSpeciesNames(new Map());
-    setPendingNameRequests(new Set());
-
-    const updateHud = () => {
-      setHudData({
-        tick: newWorld.tickCount,
-        alive: newWorld.agents.length,
-        deathsTotal: newWorld.deathsTotal,
-        avgTileFood: newWorld.avgTileFood,
-        avgEnergy: newWorld.avgEnergy,
-      });
-    };
-    updateHud();
-
-    const renderer = new Renderer(canvas, newWorld);
-    const controller = new SimController(newWorld, renderer);
-    controllerRef.current = controller;
-
-    controller.onTick = () => {
-      updateHud();
-      setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
-
-      const newColorCounts = new Map<string, number>();
-      for (const agent of newWorld.agents) {
-        newColorCounts.set(
-          agent.color,
-          (newColorCounts.get(agent.color) || 0) + 1,
-        );
+      if (controllerRef.current) {
+        controllerRef.current.stop();
+        controllerRef.current.renderer.dispose();
       }
-      setColorCounts(newColorCounts);
-    };
 
-    controller.start();
-    if (!controller.paused) {
-      controller.togglePause();
-    }
-    setIsPaused(true);
-    renderer.draw();
-  }, [simConfig]);
+      setSeed(seedToUse);
+      setSeedValue(seedToUse);
+
+      resetAgentId();
+
+      // Setup event bus and metrics collector
+      if (!eventBusRef.current) {
+        eventBusRef.current = new SimulationEventBus();
+      } else {
+        eventBusRef.current.off();
+      }
+      const bus = eventBusRef.current;
+
+      const newWorld = new World(bus, simConfig);
+      const metrics = new MetricsCollector(bus, () => newWorld.getSnapshot());
+      metrics.register(new HistoryPlugin());
+      metrics.register(new LineagePlugin());
+      metrics.register(new ForagePlugin());
+      metrics.register(new SnapshotPlugin());
+      metricsCollectorRef.current = metrics;
+
+      // Seed world
+      for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
+        newWorld.spawnAgent(rng() * newWorld.width, rng() * newWorld.height);
+      }
+      setWorld(newWorld);
+      setPeakAgentCount(INITIAL_AGENT_COUNT);
+      setColorCounts(new Map());
+      setSpeciesNames(new Map());
+      setPendingNameRequests(new Set());
+
+      const updateHud = () => {
+        setHudData({
+          tick: newWorld.tickCount,
+          alive: newWorld.agents.length,
+          deathsTotal: newWorld.deathsTotal,
+          avgTileFood: newWorld.avgTileFood,
+          avgEnergy: newWorld.avgEnergy,
+        });
+      };
+      updateHud();
+
+      const renderer = new Renderer(canvas, newWorld);
+      const controller = new SimController(newWorld, renderer);
+      controllerRef.current = controller;
+
+      controller.onTick = () => {
+        metrics.recordTick(); // Centralized metrics update
+        updateHud();
+        setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
+
+        const newColorCounts = new Map<string, number>();
+        for (const agent of newWorld.agents) {
+          newColorCounts.set(
+            agent.color,
+            (newColorCounts.get(agent.color) || 0) + 1,
+          );
+        }
+        setColorCounts(newColorCounts);
+      };
+
+      controller.start();
+      if (!controller.paused) {
+        controller.togglePause();
+      }
+      setIsPaused(true);
+      renderer.draw();
+    },
+    [simConfig],
+  );
 
   const handleTogglePause = useCallback(() => {
     controllerRef.current?.togglePause();
@@ -193,52 +212,67 @@ export function SimulationClient() {
   };
 
   const handleDownloadLog = useCallback(() => {
-    if (!world || world.series.length <= 1) {
+    const historyPlugin = metricsCollectorRef.current?.getPlugin<HistoryPlugin>(
+      'history',
+    );
+    if (!historyPlugin || historyPlugin.series.length <= 1) {
       toast({ variant: 'destructive', title: 'No Data to Download' });
       return;
     }
-    const [header, ...rows] = world.series;
+    const [header, ...rows] = historyPlugin.series;
     const blob = createCsvBlob(header, rows);
     downloadCsv(blob, `timeseries-seed-${seed}.csv`);
-  }, [world, seed, toast]);
+  }, [seed, toast]);
 
   const handleDownloadForageLog = useCallback(() => {
-    if (!world) return;
-    const forageData = world.getForageData();
+    const foragePlugin = metricsCollectorRef.current?.getPlugin<ForagePlugin>(
+      'forage',
+    );
+    if (!foragePlugin) return;
+    const forageData = foragePlugin.getForageData();
     if (forageData.length === 0) {
       toast({ variant: 'destructive', title: 'No Data to Download' });
       return;
     }
     const header = 't,i,x,y,f';
     const csvRows = forageData.map(
-      (d) => `${d.tick},${d.id},${d.x},${d.y},${d.e.toFixed(2)}`,
+      (d) => `${d.t},${d.i},${d.x},${d.y},${d.f.toFixed(2)}`,
     );
     const blob = createCsvBlob(header, csvRows);
     downloadCsv(blob, `forage-log-seed-${seed}.csv`);
-  }, [world, seed, toast]);
+  }, [seed, toast]);
 
   const handleDownloadSnapshotLog = useCallback(() => {
-    if (!world || world.snapshots.length <= 1) {
+    const snapshotPlugin = metricsCollectorRef.current?.getPlugin<SnapshotPlugin>(
+      'snapshot',
+    );
+    if (!snapshotPlugin || snapshotPlugin.snapshots.length <= 1) {
       toast({ variant: 'destructive', title: 'No Data to Download' });
       return;
     }
-    const [header, ...rows] = world.snapshots;
+    const [header, ...rows] = snapshotPlugin.snapshots;
     const blob = createCsvBlob(header, rows);
     downloadCsv(blob, `agent-snapshots-seed-${seed}.csv`);
-  }, [world, seed, toast]);
+  }, [seed, toast]);
 
   const handleDownloadHistLog = useCallback(() => {
-    if (!world || world.histRows.length <= 1) {
+    const historyPlugin = metricsCollectorRef.current?.getPlugin<HistoryPlugin>(
+      'history',
+    );
+    if (!historyPlugin || historyPlugin.histRows.length <= 1) {
       toast({ variant: 'destructive', title: 'No Data to Download' });
       return;
     }
-    const [header, ...rows] = world.histRows;
+    const [header, ...rows] = historyPlugin.histRows;
     const blob = createCsvBlob(header, rows);
     downloadCsv(blob, `hist-log-seed-${seed}.csv`);
-  }, [world, seed, toast]);
+  }, [seed, toast]);
 
   const handleAnalyze = useCallback(async () => {
-    if (!world || !isPaused || world.history.length === 0) {
+    const historyPlugin = metricsCollectorRef.current?.getPlugin<HistoryPlugin>(
+      'history',
+    );
+    if (!world || !isPaused || !historyPlugin || historyPlugin.history.length === 0) {
       toast({
         variant: 'destructive',
         title: 'Not Ready for Analysis',
@@ -253,7 +287,7 @@ export function SimulationClient() {
     setAnalysisResult(null);
 
     const { history: prunedHistory, truncated } = summarizeHistory(
-      world.history,
+      historyPlugin.history,
     );
 
     if (truncated) {
@@ -318,6 +352,10 @@ export function SimulationClient() {
       }
     }
   }, [colorCounts, speciesNames, pendingNameRequests]);
+
+  const historyPlugin = metricsCollectorRef.current?.getPlugin<HistoryPlugin>(
+    'history',
+  );
 
   return (
     <div className="relative h-screen w-full bg-gray-900">
@@ -391,7 +429,7 @@ export function SimulationClient() {
               initialAgentCount: INITIAL_AGENT_COUNT,
               initialFoodPerTile: world?.config.foodValue ?? 0,
               regrowthRate: world?.config.growthRate ?? 0,
-              simulationHistory: world?.history ?? [],
+              simulationHistory: historyPlugin?.history ?? [],
             }}
           />
         </TabsContent>
