@@ -212,7 +212,9 @@ export function SimulationClient() {
   }, [isPaused]);
 
   const createCsvBlob = (header: string, data: string[]) => {
-    return new Blob([header + '\n' + data.join('\n')], { type: 'text/csv' });
+    return new Blob([header + '
+' + data.join('
+')], { type: 'text/csv' });
   };
 
   const downloadCsv = (blob: Blob, filename: string) => {
@@ -385,12 +387,12 @@ export function SimulationClient() {
   );
 
   return (
-    <div className="relative h-screen w-full bg-gray-900">
+    <div className="relative h-screen w-full bg-background">
       <Hud {...hudData} />
 
       <Tabs
         defaultValue="species"
-        className="absolute top-16 right-4 bg-gray-900/80 backdrop-blur-sm border border-gray-700 p-1 rounded-lg w-80 z-10 flex flex-col"
+        className="absolute top-16 right-4 bg-background/80 backdrop-blur-sm border border-primary/20 p-1 rounded-lg w-80 z-10 flex flex-col"
         style={{ height: 'calc(100vh - 9rem)' }}
       >
         <TabsList className="grid w-full grid-cols-2">
@@ -409,7 +411,7 @@ export function SimulationClient() {
         >
           <h3 className="font-bold mb-2 text-base px-2">Lineages on Board</h3>
           {lineageCounts.size === 0 && (
-            <p className="text-xs text-gray-400 px-2">No agents yet.</p>
+            <p className="text-xs text-muted-foreground px-2">No agents yet.</p>
           )}
           <ul className="space-y-2">
             {Array.from(lineageCounts.entries())
@@ -432,12 +434,12 @@ export function SimulationClient() {
                             <span className="font-bold italic display-block">
                               {speciesInfo.name.genus} {speciesInfo.name.species}
                             </span>
-                            <span className="text-gray-400 block">
+                            <span className="text-muted-foreground block">
                               Lineage #{lineageId}
                             </span>
                           </>
                         ) : pendingNameRequests.has(lineageId) ? (
-                          <span className="text-gray-400">naming...</span>
+                          <span className="text-muted-foreground">naming...</span>
                         ) : (
                           <span>Lineage #{lineageId}</span>
                         )}
