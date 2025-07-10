@@ -42,6 +42,7 @@ import { SpeciesType } from '@/species';
 
 const INITIAL_PREY_COUNT = 40;
 const INITIAL_PREDATOR_COUNT = 10;
+const INITIAL_SCAVENGER_COUNT = 5;
 
 const getDefaultConfig = (): SimConfig => ({
   growthRate: 0.15,
@@ -139,8 +140,18 @@ export function SimulationClient() {
           rng() * newWorld.height,
         );
       }
+      for (let i = 0; i < INITIAL_SCAVENGER_COUNT; i++) {
+        newWorld.spawnAgent(
+          SpeciesType.SCAVENGER,
+          rng() * newWorld.width,
+          rng() * newWorld.height,
+        );
+      }
       setWorld(newWorld);
-      const initialAgentCount = INITIAL_PREDATOR_COUNT + INITIAL_PREY_COUNT;
+      const initialAgentCount =
+        INITIAL_PREDATOR_COUNT +
+        INITIAL_PREY_COUNT +
+        INITIAL_SCAVENGER_COUNT;
       setPeakAgentCount(initialAgentCount);
       setLineageSpecies(new Map());
       setPendingNameRequests(new Set());
@@ -303,7 +314,10 @@ export function SimulationClient() {
     const analysisInput = {
       ticks: world.tickCount,
       peakAgentCount,
-      initialAgentCount: INITIAL_PREDATOR_COUNT + INITIAL_PREY_COUNT,
+      initialAgentCount:
+        INITIAL_PREDATOR_COUNT +
+        INITIAL_PREY_COUNT +
+        INITIAL_SCAVENGER_COUNT,
       initialFoodPerTile: world.config.foodValue,
       regrowthRate: world.config.growthRate,
       simulationHistory: prunedHistory,
@@ -439,7 +453,10 @@ export function SimulationClient() {
             simulationData={{
               ticks: hudData.tick,
               peakAgentCount: peakAgentCount,
-              initialAgentCount: INITIAL_PREY_COUNT + INITIAL_PREDATOR_COUNT,
+              initialAgentCount:
+                INITIAL_PREDATOR_COUNT +
+                INITIAL_PREY_COUNT +
+                INITIAL_SCAVENGER_COUNT,
               initialFoodPerTile: world?.config.foodValue ?? 0,
               regrowthRate: world?.config.growthRate ?? 0,
               simulationHistory: historyPlugin?.history ?? [],

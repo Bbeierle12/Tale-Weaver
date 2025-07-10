@@ -11,6 +11,7 @@ export enum SpeciesType {
   OMNIVORE = 'omnivore',
   PREDATOR = 'predator',
   PREY = 'prey',
+  SCAVENGER = 'scavenger',
 }
 
 /** Defines the signature for a function that mutates an agent's genome. */
@@ -43,10 +44,10 @@ function isAgent(target: Tile | Agent): target is Agent {
 }
 
 /**
- * A type guard to check if a target is a Tile with food.
+ * A type guard to check if a target is a Tile.
  */
-function isFood(target: Tile | Agent): target is Tile {
-  return 'food' in target;
+function isTile(target: Tile | Agent): target is Tile {
+  return 'food' in target || 'corpse' in target;
 }
 
 /**
@@ -116,7 +117,7 @@ const OMNIVORE_BEHAVIOR: AgentBehavior = {
 
   eat: (agent, target, world) => {
     // This omnivore only eats from the ground.
-    if (isFood(target)) {
+    if (isTile(target)) {
       const foodUnits = agent.speciesDef.biteEnergy / world.config.foodValue;
       const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
       if (eaten > 0) {
@@ -180,7 +181,7 @@ const PREY_BEHAVIOR: AgentBehavior = {
   },
   eat(agent, target, world) {
     // Prey only eats from the ground
-    if (isFood(target)) {
+    if (isTile(target)) {
       const foodUnits = agent.speciesDef.biteEnergy / world.config.foodValue;
       const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
       if (eaten > 0) {
@@ -188,6 +189,43 @@ const PREY_BEHAVIOR: AgentBehavior = {
         agent.energy += gained;
         agent.foodConsumed += gained;
         agent.foundFood = true;
+      }
+    }
+  },
+  reproduce(agent, world) {
+    if (agent.energy >= agent.speciesDef.birthThreshold) {
+      agent.energy -= agent.speciesDef.birthCost;
+      world.getBus().emit({ type: 'birth', payload: { parent: agent } });
+    }
+  },
+};
+
+const SCAVENGER_BEHAVIOR: AgentBehavior = {
+  move(agent, world) {
+    // Wander randomly looking for corpses
+    agent.moveToward(world.randomAdjacent(agent), world);
+  },
+  eat(agent, target, world) {
+    if (isTile(target)) {
+      // Prioritize corpses
+      if (target.corpse && target.corpse > 0) {
+        const corpseUnits = agent.speciesDef.biteEnergy; // Direct energy
+        const eaten = world.consumeCorpse(agent.x, agent.y, corpseUnits);
+        if (eaten > 0) {
+          agent.energy += eaten;
+          agent.foodConsumed += eaten;
+          agent.foundFood = true;
+        }
+      } else if (target.food > 0) {
+        // Fall back to eating regular food
+        const foodUnits = agent.speciesDef.biteEnergy / world.config.foodValue;
+        const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
+        if (eaten > 0) {
+          const gained = eaten * world.config.foodValue;
+          agent.energy += gained;
+          agent.foodConsumed += gained;
+          agent.foundFood = true;
+        }
       }
     }
   },
@@ -246,6 +284,20 @@ const PREY_DEFINITION: SpeciesDefinition = {
   mutationFn: defaultMutation,
 };
 
+const SCAVENGER_DEFINITION: SpeciesDefinition = {
+  key: SpeciesType.SCAVENGER,
+  genomeLength: 3,
+  color: 'rgb(121, 85, 72)', // Brown color
+  basalMetabolicRate: 0.012,
+  movementCost: 0.025,
+  birthThreshold: 25,
+  birthCost: 12,
+  deathThreshold: 1e-3,
+  biteEnergy: 2, // Gets more energy per bite
+  behavior: SCAVENGER_BEHAVIOR,
+  mutationFn: defaultMutation,
+};
+
 // -----------------------------------------------------------------------------
 // --- Species Registry --------------------------------------------------------
 // -----------------------------------------------------------------------------
@@ -255,4 +307,5 @@ export const SPECIES_REGISTRY = new Map<SpeciesType, SpeciesDefinition>([
   [SpeciesType.OMNIVORE, OMNIVORE_DEFINITION],
   [SpeciesType.PREDATOR, PREDATOR_DEFINITION],
   [SpeciesType.PREY, PREY_DEFINITION],
+  [SpeciesType.SCAVENGER, SCAVENGER_DEFINITION],
 ]);

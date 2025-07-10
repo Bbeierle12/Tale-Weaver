@@ -29,12 +29,14 @@ export interface Tile {
   x: number;
   y: number;
   food: number;
+  corpse?: number;
 }
 
 export class World {
   public width: number;
   public height: number;
   public food: Float32Array;
+  public corpses: Float32Array;
   public agents: Agent[] = [];
   private bus: SimulationEventBus;
   private eventQueue: SimulationEvent[] = [];
@@ -65,6 +67,7 @@ export class World {
     this.width = width;
     this.height = height;
     this.food = new Float32Array(width * height);
+    this.corpses = new Float32Array(width * height);
     this.food.fill(0.5); // init food per tile
     this.patchMap = new Float32Array(width * height);
     this.generatePatchMap();
@@ -85,7 +88,7 @@ export class World {
 
   public getTile(x: number, y: number): Tile {
     const i = this.idx(x, y);
-    return { x, y, food: this.food[i] };
+    return { x, y, food: this.food[i], corpse: this.corpses[i] };
   }
 
   public consumeFood(tx: number, ty: number, units: number, agent: Agent): number {
@@ -99,6 +102,17 @@ export class World {
         type: 'food-consumed',
         payload: { tick: this.tickCount, agent, amount: gained, x: tx, y: ty },
       });
+    }
+    return eaten;
+  }
+
+  public consumeCorpse(tx: number, ty: number, units: number): number {
+    const i = this.idx(tx, ty);
+    const available = this.corpses[i];
+    const eaten = Math.min(available, units);
+    if (eaten > 0) {
+      this.corpses[i] -= eaten;
+      // Note: We don't emit a food-consumed event for corpses to keep logs clean
     }
     return eaten;
   }
@@ -213,7 +227,6 @@ export class World {
     };
   }
 
-
   private handleDeath(agent: Agent) {
     this.deathsThisTick++;
     const meta = this.lineageData.get(agent.lineageId);
@@ -221,6 +234,9 @@ export class World {
       meta.deaths++;
       meta.deathsTick++;
     }
+    // Add agent's energy to the corpse layer
+    const idx = this.idx(agent.x, agent.y);
+    this.corpses[idx] += agent.energy;
   }
 
   private processEventQueue() {
@@ -271,7 +287,7 @@ export class World {
       }
       agentGrid.get(key)!.push(agent);
     }
-    
+
     // Main agent loop
     for (const agent of this.agents) {
       agent.age++;
@@ -283,13 +299,13 @@ export class World {
 
       // Handle eating based on what's on the agent's new tile
       const currentTile = this.getTile(agent.x, agent.y);
-      behavior.eat(agent, currentTile, this); // Attempt to eat ground food
-      
+      behavior.eat(agent, currentTile, this); // Attempt to eat ground food/corpses
+
       const agentsOnTile = agentGrid.get(`${agent.x},${agent.y}`) || [];
       for (const other of agentsOnTile) {
-          if (agent.id !== other.id) {
-              behavior.eat(agent, other, this); // Attempt to eat other agent
-          }
+        if (agent.id !== other.id) {
+          behavior.eat(agent, other, this); // Attempt to eat other agent
+        }
       }
 
       behavior.reproduce(agent, this);
