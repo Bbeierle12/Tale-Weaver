@@ -25,6 +25,12 @@ export interface SimConfig {
   histogramInterval: number;
 }
 
+export interface Tile {
+  x: number;
+  y: number;
+  food: number;
+}
+
 export class World {
   public width: number;
   public height: number;
@@ -69,8 +75,17 @@ export class World {
   }
 
   // ───────── utilities
+  public getBus(): SimulationEventBus {
+    return this.bus;
+  }
+
   private idx(x: number, y: number): number {
     return (y | 0) * this.width + (x | 0);
+  }
+  
+  public getTile(x: number, y: number): Tile {
+    const i = this.idx(x, y);
+    return { x, y, food: this.food[i] };
   }
 
   public consumeFood(tx: number, ty: number, units: number, agent: Agent): number {

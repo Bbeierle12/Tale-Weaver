@@ -1,16 +1,16 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Literata } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 
-const inter = Inter({
+const literata = Literata({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-literata',
 });
 
 export const metadata: Metadata = {
-  title: 'Ecosystem Simulator',
-  description: 'An AI-powered ecosystem simulator',
+  title: 'Tale Weaver',
+  description: 'An AI-powered ecosystem simulator and narrative playground',
 };
 
 export default function RootLayout({
@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} dark`}>
+    <html lang="en" className={`${literata.variable} dark`}>
       <body className="font-body antialiased">
         {children}
         <Toaster />

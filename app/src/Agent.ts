@@ -50,8 +50,26 @@ export class Agent {
 
   // ───────── per‑tick behaviour
   tick(world: World): void {
-    // Delegate all behavior to the species definition
-    this.speciesDef.behavior(this, world, this.bus, this.config);
+    this.age++;
+
+    // Basal metabolic drain
+    this.energy -= this.speciesDef.basalMetabolicRate;
+    world.basalDebit += this.speciesDef.basalMetabolicRate;
+
+    // Core behaviors are delegated to the species definition
+    this.speciesDef.behavior.move(this, world);
+
+    // For omnivores, the target is always the tile they are on.
+    // This logic would be more complex for predators.
+    const target = world.getTile(this.x, this.y);
+    this.speciesDef.behavior.eat(this, target, world);
+    
+    this.speciesDef.behavior.reproduce(this, world);
+
+    // Universal death check
+    if (this.energy < this.speciesDef.deathThreshold) {
+      this.bus.emit({ type: 'death', payload: { agent: this } });
+    }
   }
 
   /** World calls this after it has harvested the counters. */

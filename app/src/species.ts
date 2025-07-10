@@ -4,8 +4,7 @@
 
 import type { Agent } from './Agent';
 import { rng } from './utils/random';
-import type { SimConfig, World } from './world';
-import type { SimulationEventBus } from './simulation/event-bus';
+import type { Tile, World } from './world';
 
 /** A unique identifier for a species type. */
 export enum SpeciesType {
@@ -15,13 +14,25 @@ export enum SpeciesType {
 /** Defines the signature for a function that mutates an agent's genome. */
 export type MutationFn = (genome: Float32Array) => Float32Array;
 
-/** Defines the signature for a function that dictates an agent's behavior for a tick. */
-export type AgentBehavior = (
+/**
+ * Defines the signature for agent behavior functions.
+ */
+export type AgentBehaviorFunction<T = Tile | Agent> = (
   agent: Agent,
+  target: T,
   world: World,
-  bus: SimulationEventBus,
-  config: SimConfig,
 ) => void;
+
+/**
+ * An interface that encapsulates the specific behaviors of a species.
+ * This allows for modular and composable agent logic.
+ */
+export interface AgentBehavior {
+  move(agent: Agent, world: World): void;
+  eat(agent: Agent, target: Tile | Agent, world: World): void;
+  reproduce(agent: Agent, world: World): void;
+}
+
 
 /**
  * The data contract that every species must fulfill. This allows for a
@@ -48,57 +59,53 @@ export interface SpeciesDefinition {
 // --- Default Omnivore Species Definition -------------------------------------
 // -----------------------------------------------------------------------------
 
-const OMNIVORE_BEHAVIOR: AgentBehavior = (agent, world, bus) => {
-  agent.age++;
+const OMNIVORE_BEHAVIOR: AgentBehavior = {
+  move: (agent, world) => {
+    // Random walk (von Neumann)
+    const dir = Math.floor(rng() * 4);
+    switch (dir) {
+      case 0:
+        agent.x = (agent.x + 1) % world.width;
+        break;
+      case 1:
+        agent.x = (agent.x + world.width - 1) % world.width;
+        break;
+      case 2:
+        agent.y = (agent.y + 1) % world.height;
+        break;
+      case 3:
+        agent.y = (agent.y + world.height - 1) % world.height;
+        break;
+    }
+    agent.stepsTaken += 1;
+    agent.distanceTravelled += 1; // Cardinal moves have distance of 1
+    agent.energy -= agent.speciesDef.movementCost;
+    world.moveDebit += agent.speciesDef.movementCost;
+  },
 
-  // Basal metabolic drain
-  agent.energy -= agent.speciesDef.basalMetabolicRate;
-  world.basalDebit += agent.speciesDef.basalMetabolicRate;
+  eat: (agent, target, world) => {
+    // This omnivore only eats from the ground, so it ignores Agent targets.
+    if ('food' in target) { // It's a Tile
+      const foodUnits =
+        agent.speciesDef.biteEnergy / world.config.foodValue;
+      const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
+      if (eaten > 0) {
+        const gained = eaten * world.config.foodValue;
+        agent.energy += gained;
+        agent.foodConsumed += gained;
+        agent.foundFood = true;
+      }
+    }
+  },
 
-  // Random walk (von Neumann)
-  const dir = Math.floor(rng() * 4);
-  switch (dir) {
-    case 0:
-      agent.x = (agent.x + 1) % world.width;
-      break;
-    case 1:
-      agent.x = (agent.x + world.width - 1) % world.width;
-      break;
-    case 2:
-      agent.y = (agent.y + 1) % world.height;
-      break;
-    case 3:
-      agent.y = (agent.y + world.height - 1) % world.height;
-      break;
-  }
-  agent.stepsTaken += 1;
-  agent.distanceTravelled += 1; // Cardinal moves have distance of 1
-  agent.energy -= agent.speciesDef.movementCost;
-  world.moveDebit += agent.speciesDef.movementCost;
-
-  // Forage
-  const foodUnits =
-    agent.speciesDef.biteEnergy / world.config.foodValue;
-  const eaten = world.consumeFood(agent.x, agent.y, foodUnits, agent);
-  if (eaten > 0) {
-    const gained = eaten * world.config.foodValue;
-    agent.energy += gained;
-    agent.foodConsumed += gained;
-    agent.foundFood = true;
-  }
-
-
-  // Reproduction
-  if (agent.energy >= agent.speciesDef.birthThreshold) {
-    agent.energy -= agent.speciesDef.birthCost;
-    bus.emit({ type: 'birth', payload: { parent: agent } });
-  }
-
-  // Death check
-  if (agent.energy < agent.speciesDef.deathThreshold) {
-    bus.emit({ type: 'death', payload: { agent: agent } });
-  }
+  reproduce: (agent, world) => {
+    if (agent.energy >= agent.speciesDef.birthThreshold) {
+      agent.energy -= agent.speciesDef.birthCost;
+      world.getBus().emit({ type: 'birth', payload: { parent: agent } });
+    }
+  },
 };
+
 
 const OMNIVORE_MUTATION: MutationFn = (genome: Float32Array): Float32Array => {
   const childGenome = new Float32Array(genome);
