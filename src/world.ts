@@ -42,6 +42,10 @@ export class World {
   private bus: SimulationEventBus;
   private eventQueue: SimulationEvent[] = [];
   public config: SimConfig;
+  public readonly lineageRows: string[] = [
+    'tick,lineageId,members,meanSpeed,meanVision,meanBasal,meanEnergy,births,deaths',
+  ];
+  public readonly lineageFitnessRows: string[] = ['lineageId,fitness'];
 
   // State
   public tickCount = 0;
@@ -323,6 +327,17 @@ export class World {
 
     for (const agent of this.agents) {
       agent.resetTickMetrics();
+    }
+  }
+
+  public finalizeLineages(): void {
+    const arr = Array.from(this.lineageData.entries()).map(([id, m]) => ({
+      id,
+      fitness: m.cumulativeLifeTicks,
+    }));
+    arr.sort((a, b) => b.fitness - a.fitness);
+    for (const e of arr) {
+      this.lineageFitnessRows.push(`${e.id},${e.fitness}`);
     }
   }
 
