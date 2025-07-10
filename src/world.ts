@@ -5,6 +5,11 @@ import type {
   SimulationEvent,
   SimulationEventBus,
 } from './simulation/event-bus';
+import {
+  SPECIES_REGISTRY,
+  SpeciesType,
+  type SpeciesDefinition,
+} from './species';
 
 let NEXT_ID = 0;
 export function resetAgentId() {
@@ -13,31 +18,25 @@ export function resetAgentId() {
 
 export interface SimConfig {
   growthRate: number; // food regrowth per tile per tick
-  biteEnergy: number; // E gained per bite
   foodValue: number; // max E per tile
-  birthThreshold: number; // E required before giving birth
-  birthCost: number; // E transferred to child (and lost by parent)
-  deathThreshold: number; // starvation boundary
-  moveCostPerStep: number; // E lost per tile walked
-  basalRate: number; // E lost per tick for being alive
-  histBins: number; // energy‑histogram resolution
+  lineageThreshold: number;
   snapshotInterval: number; // ticks between snapshots
   metricsInterval: number; // how many ticks between flushing secondary metrics
-  hotspotCount: number; // number of Gaussian growth hotspots
-  hotspotRadius: number; // sigma for hotspot Gaussian
-  mutationRates: {
-    speed: number;
-    vision: number;
-    basal: number;
-  };
-  lineageThreshold: number;
   histogramInterval: number;
+}
+
+export interface Tile {
+  x: number;
+  y: number;
+  food: number;
+  corpse?: number;
 }
 
 export class World {
   public width: number;
   public height: number;
   public food: Float32Array;
+  public corpses: Float32Array;
   public agents: Agent[] = [];
   private bus: SimulationEventBus;
   private eventQueue: SimulationEvent[] = [];
@@ -68,6 +67,7 @@ export class World {
     this.width = width;
     this.height = height;
     this.food = new Float32Array(width * height);
+    this.corpses = new Float32Array(width * height);
     this.food.fill(0.5); // init food per tile
     this.patchMap = new Float32Array(width * height);
     this.generatePatchMap();
@@ -78,29 +78,58 @@ export class World {
   }
 
   // ───────── utilities
-  private idx(x: number, y: number): number {
+  public getBus(): SimulationEventBus {
+    return this.bus;
+  }
+
+  public idx(x: number, y: number): number {
     return (y | 0) * this.width + (x | 0);
   }
 
-  public consumeFood(tx: number, ty: number, units: number): number {
+  public getTile(x: number, y: number): Tile {
+    const i = this.idx(x, y);
+    return { x, y, food: this.food[i], corpse: this.corpses[i] };
+  }
+
+  public consumeFood(tx: number, ty: number, units: number, agent: Agent): number {
     const i = this.idx(tx, ty);
     const available = this.food[i];
     const eaten = Math.min(available, units);
     if (eaten > 0) {
       this.food[i] -= eaten;
+      const gained = eaten * this.config.foodValue;
+      this.bus.emit({
+        type: 'food-consumed',
+        payload: { tick: this.tickCount, agent, amount: gained, x: tx, y: ty },
+      });
+    }
+    return eaten;
+  }
+
+  public consumeCorpse(tx: number, ty: number, units: number): number {
+    const i = this.idx(tx, ty);
+    const available = this.corpses[i];
+    const eaten = Math.min(available, units);
+    if (eaten > 0) {
+      this.corpses[i] -= eaten;
+      // Note: We don't emit a food-consumed event for corpses to keep logs clean
     }
     return eaten;
   }
 
   private generatePatchMap(): void {
+    // Simplified for now, can be species-specific later
+    const hotspotCount = 5;
+    const hotspotRadius = 20;
+
     const centers: { x: number; y: number }[] = [];
-    for (let i = 0; i < this.config.hotspotCount; i++) {
+    for (let i = 0; i < hotspotCount; i++) {
       centers.push({
         x: Math.floor(rng() * this.width),
         y: Math.floor(rng() * this.height),
       });
     }
-    const sigma = this.config.hotspotRadius;
+    const sigma = hotspotRadius;
     const denom = 2 * sigma * sigma;
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
@@ -134,9 +163,11 @@ export class World {
   // ───────── Event Handlers
   private handleBirth(parent: Agent) {
     this.birthsThisTick++;
-    const childGenome = this.mutateGenome(parent.genome);
-    let lineageId = parent.lineageId;
+    const { speciesDef } = parent;
 
+    const childGenome = speciesDef.mutationFn(parent.genome);
+
+    let lineageId = parent.lineageId;
     const deltas = parent.genome.map((g, i) => Math.abs(g - childGenome[i]));
     if (deltas.some((d) => d >= this.config.lineageThreshold)) {
       lineageId = ++this.lineageCounter;
@@ -144,9 +175,10 @@ export class World {
     }
 
     const child = this.spawnAgent(
+      speciesDef.key,
       parent.x,
       parent.y,
-      this.config.birthCost,
+      speciesDef.birthCost,
       childGenome,
       lineageId,
     );
@@ -158,6 +190,43 @@ export class World {
     }
   }
 
+  public killAgent(agent: Agent) {
+    this.bus.emit({ type: 'death', payload: { agent } });
+  }
+
+  public findNearestAgent(
+    sourceAgent: Agent,
+    filter: (agent: Agent) => boolean,
+    radius: number,
+  ): Agent | null {
+    let nearestAgent: Agent | null = null;
+    let minDistanceSq = radius * radius;
+
+    for (const agent of this.agents) {
+      if (agent.id === sourceAgent.id || !filter(agent)) {
+        continue;
+      }
+
+      const dx = agent.x - sourceAgent.x;
+      const dy = agent.y - sourceAgent.y;
+      const distanceSq = dx * dx + dy * dy;
+
+      if (distanceSq < minDistanceSq) {
+        minDistanceSq = distanceSq;
+        nearestAgent = agent;
+      }
+    }
+
+    return nearestAgent;
+  }
+
+  public randomAdjacent(agent: Agent) {
+    return {
+      x: (agent.x + Math.floor(rng() * 3) - 1 + this.width) % this.width,
+      y: (agent.y + Math.floor(rng() * 3) - 1 + this.height) % this.height,
+    };
+  }
+
   private handleDeath(agent: Agent) {
     this.deathsThisTick++;
     const meta = this.lineageData.get(agent.lineageId);
@@ -165,6 +234,9 @@ export class World {
       meta.deaths++;
       meta.deathsTick++;
     }
+    // Add agent's energy to the corpse layer
+    const idx = this.idx(agent.x, agent.y);
+    this.corpses[idx] += agent.energy;
   }
 
   private processEventQueue() {
@@ -206,8 +278,41 @@ export class World {
 
     this.regrow();
 
+    // Create a map of agent locations for efficient lookup
+    const agentGrid = new Map<string, Agent[]>();
     for (const agent of this.agents) {
-      agent.tick(this);
+      const key = `${agent.x},${agent.y}`;
+      if (!agentGrid.has(key)) {
+        agentGrid.set(key, []);
+      }
+      agentGrid.get(key)!.push(agent);
+    }
+
+    // Main agent loop
+    for (const agent of this.agents) {
+      agent.age++;
+      agent.energy -= agent.speciesDef.basalMetabolicRate;
+      this.basalDebit += agent.speciesDef.basalMetabolicRate;
+
+      const { behavior } = agent.speciesDef;
+      behavior.move(agent, this);
+
+      // Handle eating based on what's on the agent's new tile
+      const currentTile = this.getTile(agent.x, agent.y);
+      behavior.eat(agent, currentTile, this); // Attempt to eat ground food/corpses
+
+      const agentsOnTile = agentGrid.get(`${agent.x},${agent.y}`) || [];
+      for (const other of agentsOnTile) {
+        if (agent.id !== other.id) {
+          behavior.eat(agent, other, this); // Attempt to eat other agent
+        }
+      }
+
+      behavior.reproduce(agent, this);
+
+      if (agent.energy < agent.speciesDef.deathThreshold) {
+        this.bus.emit({ type: 'death', payload: { agent } });
+      }
     }
 
     this.processEventQueue();
@@ -218,25 +323,6 @@ export class World {
     for (const agent of this.agents) {
       agent.resetTickMetrics();
     }
-  }
-
-  private mutateGenome(src: Float32Array): Float32Array {
-    const { speed, vision, basal } = this.config.mutationRates;
-    const childGenome = new Float32Array(src);
-
-    if (rng() < speed) {
-      const d = (rng() * 2 - 1) * 0.1;
-      childGenome[0] = Math.min(1, Math.max(0, childGenome[0] + d));
-    }
-    if (rng() < vision) {
-      const d = (rng() * 2 - 1) * 0.1;
-      childGenome[1] = Math.min(1, Math.max(0, childGenome[1] + d));
-    }
-    if (rng() < basal) {
-      const d = (rng() * 2 - 1) * 0.1;
-      childGenome[2] = Math.min(1, Math.max(0, childGenome[2] + d));
-    }
-    return childGenome;
   }
 
   public registerLineage(id: number, genome: Float32Array): void {
@@ -284,12 +370,18 @@ export class World {
   }
 
   public spawnAgent(
+    speciesKey: SpeciesType,
     x: number,
     y: number,
     energy = 10,
     genome?: Float32Array,
     lineageId?: number,
   ): Agent {
+    const speciesDef = SPECIES_REGISTRY.get(speciesKey);
+    if (!speciesDef) {
+      throw new Error(`Species with key "${speciesKey}" not found in registry.`);
+    }
+
     const id = lineageId !== undefined ? lineageId : this.lineageCounter++;
     const agent = new Agent(
       NEXT_ID++,
@@ -297,6 +389,7 @@ export class World {
       y,
       this.bus,
       this.config,
+      speciesDef,
       energy,
       genome,
       id,

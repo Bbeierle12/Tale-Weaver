@@ -86,29 +86,49 @@ export class Renderer {
     const cols = Math.ceil(cw / this.zoom) + 1;
     const rows = Math.ceil(ch / this.zoom) + 1;
 
-    // draw terrain (food density)
+    // draw terrain (food and corpses)
     for (let y = 0; y < rows; y++) {
       const ty = y0 + y;
       if (ty >= world.height) break;
       for (let x = 0; x < cols; x++) {
         const tx = x0 + x;
         if (tx >= world.width) break;
-        const food = world.food[world.idx(tx, ty)];
-        if (food <= 0.01) continue;
-        const brightness = food / this.config.foodValue;
-        ctx.fillStyle = `rgba(34,197,94,${brightness * 0.75})`;
-        ctx.fillRect(
-          tx * this.zoom - this.camX,
-          ty * this.zoom - this.camY,
-          this.zoom,
-          this.zoom,
-        );
+        const idx = world.idx(tx, ty);
+
+        // Draw food
+        const food = world.food[idx];
+        if (food > 0.01) {
+          const brightness = food / this.config.foodValue;
+          ctx.fillStyle = `rgba(34,197,94,${brightness * 0.75})`;
+          ctx.fillRect(
+            tx * this.zoom - this.camX,
+            ty * this.zoom - this.camY,
+            this.zoom,
+            this.zoom,
+          );
+        }
+
+        // Draw corpses
+        const corpse = world.corpses[idx];
+        if (corpse > 0.01) {
+          const brightness = Math.min(1, corpse / 20); // Corpse energy can be high
+          ctx.fillStyle = `rgba(120, 81, 169,${brightness * 0.85})`;
+          ctx.beginPath();
+          ctx.arc(
+            tx * this.zoom - this.camX + this.zoom / 2,
+            ty * this.zoom - this.camY + this.zoom / 2,
+            this.zoom / 3,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+        }
       }
     }
 
     // draw agents
     for (const a of world.agents) {
-      ctx.fillStyle = a.color; // Use agent's individual color
+      ctx.fillStyle = a.speciesDef.color; // Use species definition color
       const sx = a.x * this.zoom - this.camX;
       const sy = a.y * this.zoom - this.camY;
       if (sx < -4 || sx > cw + 4 || sy < -4 || sy > ch + 4) continue; // skip off‑screen

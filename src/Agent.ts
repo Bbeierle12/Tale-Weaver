@@ -1,11 +1,9 @@
 // ────────────────────────────────────────────────────────────────
 // --- src/Agent.ts ----------------------------------------------
 // ────────────────────────────────────────────────────────────────
-import type { SimConfig } from './world';
-import type { World } from './world';
-import { rng } from './utils/random';
-import { mapLinear } from './utils/genetics';
+import type { SimConfig, World } from './world';
 import type { SimulationEventBus } from './simulation/event-bus';
+import type { SpeciesDefinition } from './species';
 
 export class Agent {
   readonly id: number;
@@ -16,20 +14,9 @@ export class Agent {
   readonly genome: Float32Array;
   age = 0; // ticks lived
   foodConsumed = 0; // aggregate E eaten
-  color: string;
   private bus: SimulationEventBus;
   private config: SimConfig;
-
-  // Phenotype
-  get speed(): number {
-    return mapLinear(this.genome[0], 0.5, 2);
-  }
-  get vision(): number {
-    return mapLinear(this.genome[1], 1, 10);
-  }
-  get basalRateTrait(): number {
-    return mapLinear(this.genome[2], 0.5, 2) * this.config.basalRate;
-  }
+  public readonly speciesDef: SpeciesDefinition;
 
   // Per-tick metrics, reset by World
   stepsTaken = 0;
@@ -42,6 +29,7 @@ export class Agent {
     y: number,
     bus: SimulationEventBus,
     config: SimConfig,
+    speciesDef: SpeciesDefinition,
     energy = 5,
     genome?: Float32Array,
     lineageId = 0,
@@ -51,24 +39,13 @@ export class Agent {
     this.y = y;
     this.bus = bus;
     this.config = config;
+    this.speciesDef = speciesDef;
     this.energy = energy;
 
     // -- Genetics --
-    this.genome = genome ? new Float32Array(genome) : Agent.randomGenome();
+    this.genome =
+      genome ?? new Float32Array(this.speciesDef.genomeLength).map(Math.random);
     this.lineageId = lineageId;
-
-    // -- Color from genes --
-    const r = Math.floor(this.genome[0] * 255);
-    const g = Math.floor(this.genome[1] * 255);
-    const b = Math.floor(this.genome[2] * 255);
-    this.color = `rgb(${r},${g},${b})`;
-  }
-
-  // ───────── genetics
-  private static randomGenome(): Float32Array {
-    const g = new Float32Array(16);
-    for (let i = 0; i < g.length; i++) g[i] = rng();
-    return g;
   }
 
   // ───────── per‑tick behaviour
@@ -76,64 +53,60 @@ export class Agent {
     this.age++;
 
     // Basal metabolic drain
-    this.energy -= this.config.basalRate;
-    world.basalDebit += this.config.basalRate;
+    this.energy -= this.speciesDef.basalMetabolicRate;
+    world.basalDebit += this.speciesDef.basalMetabolicRate;
 
-    // Random walk (von Neumann)
-    const dir = Math.floor(rng() * 4);
-    this.move(dir, world);
+    // Behaviors are now called directly from the World's step method
+    this.speciesDef.behavior.move(this, world);
 
-    // Forage
-    this.eat(world);
+    const targetTile = world.getTile(this.x, this.y);
+    this.speciesDef.behavior.eat(this, targetTile, world);
 
-    // Reproduction
-    if (this.energy >= this.config.birthThreshold) {
-      this.energy -= this.config.birthCost;
-      this.bus.emit({ type: 'birth', payload: { parent: this } });
-    }
+    // For predators, the World loop will check for agents on the same tile
+    // and call eat again with the agent as the target.
 
-    // Death check
-    if (this.energy < this.config.deathThreshold) {
+    this.speciesDef.behavior.reproduce(this, world);
+
+    // Universal death check, called from World after all actions
+    if (this.energy < this.speciesDef.deathThreshold) {
       this.bus.emit({ type: 'death', payload: { agent: this } });
     }
   }
 
-  private move(dir: number, world: World): void {
-    switch (dir) {
-      case 0:
-        this.x = (this.x + 1) % world.width;
-        break;
-      case 1:
-        this.x = (this.x + world.width - 1) % world.width;
-        break;
-      case 2:
-        this.y = (this.y + 1) % world.height;
-        break;
-      case 3:
-        this.y = (this.y + world.height - 1) % world.height;
-        break;
+  moveToward(target: { x: number; y: number }, world: World): void {
+    const dx = target.x - this.x;
+    const dy = target.y - this.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.x += Math.sign(dx);
+    } else {
+      this.y += Math.sign(dy);
     }
+    this.x = (this.x + world.width) % world.width;
+    this.y = (this.y + world.height) % world.height;
+
     this.stepsTaken += 1;
-    this.distanceTravelled += 1; // Cardinal moves have distance of 1
-    // Simplified move cost for this model version
-    this.energy -= this.config.moveCostPerStep;
-    world.moveDebit += this.config.moveCostPerStep;
+    this.distanceTravelled += 1;
+    this.energy -= this.speciesDef.movementCost;
+    world.moveDebit += this.speciesDef.movementCost;
   }
 
-  /** Called once per tick after move */
-  private eat(world: World) {
-    const foodUnits = this.config.biteEnergy / this.config.foodValue;
-    const eaten = world.consumeFood(this.x, this.y, foodUnits);
-    if (eaten > 0) {
-      const gained = eaten * this.config.foodValue;
-      this.energy += gained;
-      this.foodConsumed += gained;
-      this.bus.emit({
-        type: 'food-consumed',
-        payload: { tick: world.tickCount, agent: this, amount: gained, x: this.x, y: this.y },
-      });
-      this.foundFood = true;
+  moveAway(target: { x: number; y: number }, world: World): void {
+    const dx = this.x - target.x;
+    const dy = this.y - target.y;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      this.x += Math.sign(dx);
+    } else {
+      this.y += Math.sign(dy);
     }
+    this.x = (this.x + world.width) % world.width;
+    this.y = (this.y + world.height) % world.height;
+
+    this.stepsTaken += 1;
+    this.distanceTravelled += 1;
+    this.energy -= this.speciesDef.movementCost;
+    world.moveDebit += this.speciesDef.movementCost;
   }
 
   /** World calls this after it has harvested the counters. */

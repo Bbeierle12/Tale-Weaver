@@ -64,7 +64,7 @@ export interface MetricsPlugin {
   subscribe(bus: SimulationEventBus, getSnapshot: () => WorldSnapshot): void;
   reset(): void;
   recordTick(snapshot: WorldSnapshot): void;
-  finalize?(): void;
+  finalize?(snapshot: WorldSnapshot): void;
 }
 
 // -----------------------------------------------------------------------------
@@ -102,9 +102,10 @@ export class MetricsCollector {
   }
 
   finalize(): void {
+    const snapshot = this.getSnapshot();
     for (const plugin of this.plugins.values()) {
       if (plugin.finalize) {
-        plugin.finalize();
+        plugin.finalize(snapshot);
       }
     }
   }
@@ -126,12 +127,14 @@ export class HistoryPlugin implements MetricsPlugin {
   ];
   public histRows: string[] = [];
   private energyHist!: Hist;
+  private histBins = 10;
 
   subscribe(_: SimulationEventBus, getSnapshot: () => WorldSnapshot) {
     const { config } = getSnapshot();
-    this.energyHist = new Hist(config.histBins);
+    this.histBins = config.histogramInterval > 0 ? 10 : 0; // Simplified logic, adjust as needed
+    this.energyHist = new Hist(this.histBins);
     this.histRows.push(
-      `tick,${Array.from({ length: config.histBins }, (_, i) => `b${i}`).join(',')}`,
+      `tick,${Array.from({ length: this.histBins }, (_, i) => `b${i}`).join(',')}`,
     );
   }
 
@@ -207,7 +210,9 @@ export class HistoryPlugin implements MetricsPlugin {
       meanSteps.toFixed(2),
     ].join(',');
     this.series.push(row);
-    this.histRows.push(`${tick},${this.energyHist.toArray().join(',')}`);
+    if (tick % config.histogramInterval === 0) {
+        this.histRows.push(`${tick},${this.energyHist.toArray().join(',')}`);
+    }
   }
 }
 
@@ -230,7 +235,7 @@ export class LineagePlugin implements MetricsPlugin {
   recordTick(snapshot: WorldSnapshot): void {
     const { tick, agents, lineageData, config } = snapshot;
 
-    if (tick % config.histogramInterval !== 0) return;
+    if (tick % config.histogramInterval !== 0 || tick === 0) return;
 
     const agentsByLineage = new Map<number, Agent[]>();
     for (const agent of agents) {
@@ -245,25 +250,21 @@ export class LineagePlugin implements MetricsPlugin {
       const members = lineageAgents.length;
       meta.cumulativeLifeTicks += members * config.histogramInterval;
 
-      const speed = new RunningStats();
-      const vision = new RunningStats();
-      const basal = new RunningStats();
       const energy = new RunningStats();
+      const traitStats: RunningStats[] = lineageAgents[0].genome.map(() => new RunningStats());
 
       for (const agent of lineageAgents) {
-        speed.push(agent.speed);
-        vision.push(agent.vision);
-        basal.push(agent.basalRateTrait);
         energy.push(agent.energy);
+        agent.genome.forEach((gene, i) => {
+            traitStats[i].push(gene);
+        });
       }
 
       const row = [
         tick,
         id,
         members,
-        speed.avg.toFixed(3),
-        vision.avg.toFixed(3),
-        basal.avg.toFixed(5),
+        ...traitStats.map(stats => stats.avg.toFixed(3)),
         energy.avg.toFixed(3),
         meta.birthsTick,
         meta.deathsTick,
@@ -293,13 +294,15 @@ export class ForagePlugin implements MetricsPlugin {
 
   subscribe(bus: SimulationEventBus): void {
     bus.on('food-consumed', (e) => {
-      this.forageLog.push({
-        t: e.payload.tick,
-        i: e.payload.agent.id,
-        x: e.payload.x,
-        y: e.payload.y,
-        f: e.payload.amount,
-      });
+      if(e.payload.agent) {
+        this.forageLog.push({
+          t: e.payload.tick,
+          i: e.payload.agent.id,
+          x: e.payload.x,
+          y: e.payload.y,
+          f: e.payload.amount,
+        });
+      }
     });
   }
 

@@ -38,35 +38,27 @@ import {
   ForagePlugin,
   SnapshotPlugin,
 } from '@/simulation/metrics';
+import { SpeciesType } from '@/species';
 
-const INITIAL_AGENT_COUNT = 50;
+const INITIAL_PREY_COUNT = 40;
+const INITIAL_PREDATOR_COUNT = 10;
+const INITIAL_SCAVENGER_COUNT = 5;
 
 const getDefaultConfig = (): SimConfig => ({
   growthRate: 0.15,
-  biteEnergy: 1,
   foodValue: 10,
-  birthThreshold: 20,
-  birthCost: 9,
-  deathThreshold: 1e-3,
-  moveCostPerStep: 0.02,
-  basalRate: 0.01,
-  histBins: 10,
+  lineageThreshold: 0.05,
   snapshotInterval: 100,
   metricsInterval: 1,
-  hotspotCount: 5,
-  hotspotRadius: 20,
-  mutationRates: {
-    speed: 0.01,
-    vision: 0.01,
-    basal: 0.01,
-  },
-  lineageThreshold: 0.05,
   histogramInterval: 100,
 });
 
-interface SpeciesName {
-  genus: string;
-  species: string;
+interface SpeciesInfo {
+  name: {
+    genus: string;
+    species: string;
+  };
+  color: string;
 }
 
 export function SimulationClient() {
@@ -89,14 +81,14 @@ export function SimulationClient() {
 
   const [peakAgentCount, setPeakAgentCount] = useState(0);
   const [seed, setSeedValue] = useState(1);
-  const [simConfig, setSimConfig] = useState(getDefaultConfig());
-  const [colorCounts, setColorCounts] = useState(new Map<string, number>());
-  const [speciesNames, setSpeciesNames] = useState<Map<string, SpeciesName>>(
+  const [simConfig] = useState(getDefaultConfig());
+  const [lineageSpecies, setLineageSpecies] = useState<Map<number, SpeciesInfo>>(
     new Map(),
   );
-  const [pendingNameRequests, setPendingNameRequests] = useState<Set<string>>(
+  const [pendingNameRequests, setPendingNameRequests] = useState<Set<number>>(
     new Set(),
   );
+  const [lineageCounts, setLineageCounts] = useState(new Map<number, number>());
 
   const [isAnalysisDialogOpen, setIsAnalysisDialogOpen] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -133,15 +125,37 @@ export function SimulationClient() {
       metrics.register(new SnapshotPlugin());
       metricsCollectorRef.current = metrics;
 
-      // Seed world
-      for (let i = 0; i < INITIAL_AGENT_COUNT; i++) {
-        newWorld.spawnAgent(rng() * newWorld.width, rng() * newWorld.height);
+      // Seed world with prey and predators
+      for (let i = 0; i < INITIAL_PREY_COUNT; i++) {
+        newWorld.spawnAgent(
+          SpeciesType.PREY,
+          rng() * newWorld.width,
+          rng() * newWorld.height,
+        );
+      }
+      for (let i = 0; i < INITIAL_PREDATOR_COUNT; i++) {
+        newWorld.spawnAgent(
+          SpeciesType.PREDATOR,
+          rng() * newWorld.width,
+          rng() * newWorld.height,
+        );
+      }
+      for (let i = 0; i < INITIAL_SCAVENGER_COUNT; i++) {
+        newWorld.spawnAgent(
+          SpeciesType.SCAVENGER,
+          rng() * newWorld.width,
+          rng() * newWorld.height,
+        );
       }
       setWorld(newWorld);
-      setPeakAgentCount(INITIAL_AGENT_COUNT);
-      setColorCounts(new Map());
-      setSpeciesNames(new Map());
+      const initialAgentCount =
+        INITIAL_PREDATOR_COUNT +
+        INITIAL_PREY_COUNT +
+        INITIAL_SCAVENGER_COUNT;
+      setPeakAgentCount(initialAgentCount);
+      setLineageSpecies(new Map());
       setPendingNameRequests(new Set());
+      setLineageCounts(new Map());
 
       const updateHud = () => {
         setHudData({
@@ -163,14 +177,14 @@ export function SimulationClient() {
         updateHud();
         setPeakAgentCount((p) => Math.max(p, newWorld.agents.length));
 
-        const newColorCounts = new Map<string, number>();
+        const newCounts = new Map<number, number>();
         for (const agent of newWorld.agents) {
-          newColorCounts.set(
-            agent.color,
-            (newColorCounts.get(agent.color) || 0) + 1,
+          newCounts.set(
+            agent.lineageId,
+            (newCounts.get(agent.lineageId) || 0) + 1,
           );
         }
-        setColorCounts(newColorCounts);
+        setLineageCounts(newCounts);
       };
 
       controller.start();
@@ -300,7 +314,10 @@ export function SimulationClient() {
     const analysisInput = {
       ticks: world.tickCount,
       peakAgentCount,
-      initialAgentCount: INITIAL_AGENT_COUNT,
+      initialAgentCount:
+        INITIAL_PREDATOR_COUNT +
+        INITIAL_PREY_COUNT +
+        INITIAL_SCAVENGER_COUNT,
       initialFoodPerTile: world.config.foodValue,
       regrowthRate: world.config.growthRate,
       simulationHistory: prunedHistory,
@@ -324,34 +341,42 @@ export function SimulationClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Effect to generate names for new lineages
   useEffect(() => {
-    if (!colorCounts) return;
+    if (!world) return;
 
-    const newColors = Array.from(colorCounts.keys());
+    for (const lineageId of lineageCounts.keys()) {
+      if (!lineageSpecies.has(lineageId) && !pendingNameRequests.has(lineageId)) {
+        const agent = world.agents.find((a) => a.lineageId === lineageId);
+        if (agent) {
+          const color = agent.speciesDef.color;
+          setPendingNameRequests((prev) => new Set(prev).add(lineageId));
 
-    for (const color of newColors) {
-      if (!speciesNames.has(color) && !pendingNameRequests.has(color)) {
-        setPendingNameRequests((prev) => new Set(prev).add(color));
-
-        generateSpeciesNameAction({ color })
-          .then((name) => {
-            if (name.genus && name.species) {
-              setSpeciesNames((prev) => new Map(prev).set(color, name));
-            }
-          })
-          .catch((err) => {
-            console.error(`Failed to generate name for color ${color}:`, err);
-          })
-          .finally(() => {
-            setPendingNameRequests((prev) => {
-              const next = new Set(prev);
-              next.delete(color);
-              return next;
+          generateSpeciesNameAction({ color })
+            .then((name) => {
+              if (name.genus && name.species) {
+                setLineageSpecies((prev) =>
+                  new Map(prev).set(lineageId, { name, color }),
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(
+                `Failed to generate name for lineage ${lineageId}:`,
+                err,
+              );
+            })
+            .finally(() => {
+              setPendingNameRequests((prev) => {
+                const next = new Set(prev);
+                next.delete(lineageId);
+                return next;
+              });
             });
-          });
+        }
       }
     }
-  }, [colorCounts, speciesNames, pendingNameRequests]);
+  }, [world, lineageCounts, lineageSpecies, pendingNameRequests]);
 
   const historyPlugin = metricsCollectorRef.current?.getPlugin<HistoryPlugin>(
     'history',
@@ -380,37 +405,39 @@ export function SimulationClient() {
           value="species"
           className="flex-1 overflow-y-auto mt-2 pr-1 font-mono text-white text-sm"
         >
-          <h3 className="font-bold mb-2 text-base px-2">Species on Board</h3>
-          {colorCounts.size === 0 && (
+          <h3 className="font-bold mb-2 text-base px-2">Lineages on Board</h3>
+          {lineageCounts.size === 0 && (
             <p className="text-xs text-gray-400 px-2">No agents yet.</p>
           )}
           <ul className="space-y-2">
-            {Array.from(colorCounts.entries())
+            {Array.from(lineageCounts.entries())
               .sort(([, a], [, b]) => b - a)
-              .map(([color, count]) => {
-                const speciesInfo = speciesNames.get(color);
+              .map(([lineageId, count]) => {
+                const speciesInfo = lineageSpecies.get(lineageId);
                 return (
                   <li
-                    key={color}
+                    key={lineageId}
                     className="flex items-start justify-between gap-3 px-2"
                   >
                     <div className="flex items-start gap-2 pt-1">
                       <div
                         className="w-4 h-4 shrink-0 rounded-full border border-white/20"
-                        style={{ backgroundColor: color }}
+                        style={{ backgroundColor: speciesInfo?.color ?? '#888' }}
                       />
                       <div className="flex-1 text-xs">
                         {speciesInfo ? (
                           <>
                             <span className="font-bold italic display-block">
-                              {speciesInfo.genus} {speciesInfo.species}
+                              {speciesInfo.name.genus} {speciesInfo.name.species}
                             </span>
-                            <span className="text-gray-400 block">{color}</span>
+                            <span className="text-gray-400 block">
+                              Lineage #{lineageId}
+                            </span>
                           </>
-                        ) : pendingNameRequests.has(color) ? (
+                        ) : pendingNameRequests.has(lineageId) ? (
                           <span className="text-gray-400">naming...</span>
                         ) : (
-                          <span>{color}</span>
+                          <span>Lineage #{lineageId}</span>
                         )}
                       </div>
                     </div>
@@ -426,7 +453,10 @@ export function SimulationClient() {
             simulationData={{
               ticks: hudData.tick,
               peakAgentCount: peakAgentCount,
-              initialAgentCount: INITIAL_AGENT_COUNT,
+              initialAgentCount:
+                INITIAL_PREDATOR_COUNT +
+                INITIAL_PREY_COUNT +
+                INITIAL_SCAVENGER_COUNT,
               initialFoodPerTile: world?.config.foodValue ?? 0,
               regrowthRate: world?.config.growthRate ?? 0,
               simulationHistory: historyPlugin?.history ?? [],
