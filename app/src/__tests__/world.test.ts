@@ -67,4 +67,22 @@ describe('World resource simulation', () => {
 
     expect(world.avgEnergy).toBe(15);
   });
+
+  it('predator kills prey and gains energy', () => {
+    const world = new World(bus, config);
+    const predator = world.spawnAgent(SpeciesType.PREDATOR, 0, 0, 10);
+    const prey = world.spawnAgent(SpeciesType.PREY, 0, 0, 10);
+    const initialEnergy = predator.energy;
+  
+    // Manually trigger the eat behavior
+    predator.speciesDef.behavior.eat(predator, prey, world);
+  
+    // After `eat`, the `killAgent` method emits a `death` event.
+    // We need to manually process the event queue to see the result.
+    world['processEventQueue']();
+  
+    expect(world.agents.includes(prey)).toBe(false); // Prey should be removed
+    expect(predator.energy).toBeGreaterThan(initialEnergy);
+    expect(world.deathsTotal).toBe(1);
+  });
 });
