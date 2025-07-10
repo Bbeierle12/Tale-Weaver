@@ -131,7 +131,7 @@ export class HistoryPlugin implements MetricsPlugin {
 
   subscribe(_: SimulationEventBus, getSnapshot: () => WorldSnapshot) {
     const { config } = getSnapshot();
-    this.histBins = config.histogramInterval > 0 ? 10 : 0; // Simplified logic, adjust as needed
+    this.histBins = config.histBins > 0 ? config.histBins : 0;
     this.energyHist = new Hist(this.histBins);
     this.histRows.push(
       `tick,${Array.from({ length: this.histBins }, (_, i) => `b${i}`).join(',')}`,
@@ -153,7 +153,9 @@ export class HistoryPlugin implements MetricsPlugin {
     this.energyHist.reset();
     for (const agent of agents) {
       energyStats.push(agent.energy);
-      this.energyHist.add(agent.energy);
+      if (tick % config.histogramInterval === 0) {
+          this.energyHist.add(agent.energy);
+      }
     }
 
     const foodStats = new RunningStats();

@@ -23,6 +23,7 @@ export interface SimConfig {
   snapshotInterval: number; // ticks between snapshots
   metricsInterval: number; // how many ticks between flushing secondary metrics
   histogramInterval: number;
+  histBins: number;
 }
 
 export interface Tile {

@@ -11,6 +11,7 @@ import type {
 import { generateSpeciesName } from '@/ai/flows/generate-species-name';
 import type { SpeciesNameInput, SpeciesNameOutput } from '@/ai/schemas';
 import { chatAboutSimulation } from '@/ai/flows/simulation-chat-flow';
+import { marked } from 'marked';
 
 export async function analyzeSimulationAction(
   input: SimulationAnalysisInput,
@@ -20,19 +21,23 @@ export async function analyzeSimulationAction(
     if (!result?.analysis) {
       return {
         analysis:
-          '## Analysis Failed\n\nThe AI returned an empty analysis. Please try again.',
+          '<h2>Analysis Failed</h2><p>The AI returned an empty analysis. Please try again.</p>',
       };
     }
-    return result;
+    // Convert markdown to HTML on the server
+    const htmlAnalysis = await marked(result.analysis);
+    return { analysis: htmlAnalysis };
   } catch (error) {
     console.error('Error running simulation analysis:', error);
+    const errorMessage = `<h2>Analysis Failed</h2><p>An error occurred while generating the analysis: ${
+      error instanceof Error ? error.message : 'Unknown error'
+    }</p>`;
     return {
-      analysis: `## Analysis Failed\n\nAn error occurred while generating the analysis: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+      analysis: errorMessage,
     };
   }
 }
+
 
 export async function generateSpeciesNameAction(
   input: SpeciesNameInput,

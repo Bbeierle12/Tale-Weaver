@@ -49,9 +49,10 @@ export function AnalysisDialog({
             </div>
           )}
           {analysis && (
-            <p className="text-sm text-foreground/90 whitespace-pre-wrap font-body">
-              {analysis}
-            </p>
+            <div
+              className="text-sm text-foreground/90 whitespace-pre-wrap font-body prose prose-invert prose-sm"
+              dangerouslySetInnerHTML={{ __html: analysis }}
+            />
           )}
         </ScrollArea>
       </DialogContent>

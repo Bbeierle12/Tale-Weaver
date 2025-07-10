@@ -39,6 +39,7 @@ import {
   SnapshotPlugin,
 } from '@/simulation/metrics';
 import { SpeciesType } from '@/species';
+import { marked } from 'marked';
 
 const INITIAL_PREY_COUNT = 40;
 const INITIAL_PREDATOR_COUNT = 10;
@@ -324,7 +325,8 @@ export function SimulationClient() {
     };
 
     const result = await analyzeSimulationAction(analysisInput);
-    setAnalysisResult(result.analysis);
+    const htmlResult = await marked(result.analysis);
+    setAnalysisResult(htmlResult);
     setIsAnalysisLoading(false);
   }, [world, isPaused, peakAgentCount, toast]);
 
