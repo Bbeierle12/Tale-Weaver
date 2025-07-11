@@ -1,0 +1,9 @@
+[application]
+config/name="EcoSysX Simulator"
+run/main_scene="res://addons/ecosysx/PlaneVisualizer.tscn"
+
+[autoload]
+QualitySettings="res://addons/ecosysx/quality_settings.gd"
+
+[rendering]
+quality/driver_name="Vulkan"
