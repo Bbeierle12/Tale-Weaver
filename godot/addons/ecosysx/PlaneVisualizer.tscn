@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+[ext_resource path="res://addons/ecosysx/PlaneVisualizer.gd" type="Script" id=1]
+[node name="PlaneVisualizer" type="Node3D"]
+script = ExtResource( 1 )
+grid_size = Vector2(256, 256)
+cell_size = 1.0
+tilt_angle = 30.0
+data_texture = preload("res://data/dummy_data.png")
+color_ramp = preload("res://assets/viridis_ramp.png")
+emissive_ramp = preload("res://assets/emissive_ramp.png")
+height_scale = 1.0
+threshold_emissive = 0.8
